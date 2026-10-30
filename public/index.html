@@ -8,6 +8,9 @@
   <!-- Telegram WebApp SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
+  <!-- Monetag SDK Thật của bạn -->
+  <script src="//libtl.com/sdk.js" data-zone="12154176" data-sdk="show_12154176"></script>
+
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
     body {
@@ -106,7 +109,7 @@
       transition: width 0.3s;
     }
 
-    /* Bàn cờ 200 ô (10 cột x 20 hàng) */
+    /* Bàn cờ 200 ô */
     .grid-container {
       margin: 0 16px;
       display: grid;
@@ -182,7 +185,7 @@
     .btn-primary { background: #22c55e; color: #fff; }
     .btn-secondary { background: #475569; color: #fff; }
 
-    /* Leaderboard Footer */
+    /* Leaderboard */
     .leaderboard-box {
       margin: 16px;
       background: #252836;
@@ -255,8 +258,8 @@
   <div class="modal-overlay" id="modal-double">
     <div class="modal-card">
       <div class="modal-title">💎 TRÚNG KIM CƯƠNG!</div>
-      <div class="modal-desc" id="double-desc">Bạn vừa nhận được +10 Kim Cương!</div>
-      <button class="modal-btn btn-primary" onclick="watchAdForDouble()">📺 Xem Video Để X2 (Nhận Thêm)</button>
+      <div class="modal-desc" id="double-desc">Bạn vừa nhận được Kim Cương!</div>
+      <button class="modal-btn btn-primary" onclick="watchAdForDouble()">📺 Xem Video Để X2</button>
       <button class="modal-btn btn-secondary" onclick="closeModal('modal-double')">Bỏ Qua</button>
     </div>
   </div>
@@ -280,7 +283,7 @@
 
     const userData = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) 
       ? tg.initDataUnsafe.user 
-      : { id: "test_user_123", first_name: "Thợ Mỏ Thử Nghiệm" };
+      : { id: "test_user_123", first_name: "Thợ Mỏ" };
 
     let currentDiamondsGained = 0;
     let dugMap = new Map();
@@ -391,19 +394,19 @@
       }
     }
 
-    // 4. XỬ LÝ QUẢNG CÁO MONETAG
+    // 4. KÍCH HOẠT QUẢNG CÁO MONETAG THẬT
     async function watchAdForPickaxe() {
       closeModal('modal-no-pickaxe');
-      await triggerAdFlow('GET_PICKAXE', 0);
+      await runMonetagAd('GET_PICKAXE', 0);
     }
 
     async function watchAdForDouble() {
       closeModal('modal-double');
-      await triggerAdFlow('DOUBLE_DIAMOND', currentDiamondsGained);
+      await runMonetagAd('DOUBLE_DIAMOND', currentDiamondsGained);
     }
 
-    async function triggerAdFlow(action, amount) {
-      // Gọi server tạo phiên xem
+    async function runMonetagAd(action, amount) {
+      // 1. Báo server tạo phiên
       const res = await fetch('/api/ads/create-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -411,27 +414,23 @@
       });
       const { txId } = await res.json();
 
-      // Kiểm tra hàm xem quảng cáo của Monetag
-      if (typeof window.show_rewarded === 'function') {
-        window.show_rewarded().then(() => pollCheckReward(txId));
+      // 2. Gọi hàm hiển thị quảng cáo thật của Monetag
+      if (typeof window.show_12154176 === 'function') {
+        window.show_12154176().then(async () => {
+          // Người chơi xem xong video -> Báo server cộng thưởng ngay lập tức
+          await fetch('/api/ads/claim-reward', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ telegramId: String(userData.id), txId, action, diamondAmount: amount })
+          });
+          // Cập nhật lại giao diện game
+          setTimeout(loadGame, 800);
+        }).catch(err => {
+          console.warn("Người dùng đóng quảng cáo hoặc chưa sẵn sàng:", err);
+        });
       } else {
-        alert("Đang mô phỏng xem quảng cáo (10s)...");
-        setTimeout(() => pollCheckReward(txId), 3000);
+        alert("Quảng cáo đang tải, bạn vui lòng bấm lại sau 3 giây nhé!");
       }
-    }
-
-    // Polling kiểm tra xem Postback từ Monetag đã về chưa
-    function pollCheckReward(txId) {
-      let count = 0;
-      const interval = setInterval(async () => {
-        count++;
-        const res = await fetch('/api/ads/check-session/' + txId);
-        const data = await res.json();
-        if (data.completed || count > 15) {
-          clearInterval(interval);
-          loadGame(); // Cập nhật lại số cuốc/kim cương
-        }
-      }, 2000);
     }
 
     function closeModal(id) {
