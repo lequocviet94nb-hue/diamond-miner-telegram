@@ -19,8 +19,7 @@ mongoose.connect(MONGODB_URI)
   .then(() => console.log('✅ Đã kết nối thành công MongoDB Atlas!'))
   .catch(err => console.error('❌ Lỗi kết nối MongoDB:', err));
 
-// ================= ĐỊNH NGHĨA DỮ LIỆU (SCHEMAS) =================
-// 1. Người chơi
+// ================= SCHEMAS =================
 const UserSchema = new mongoose.Schema({
   telegramId: { type: String, required: true, unique: true },
   username: { type: String, default: 'Thợ Mỏ' },
@@ -28,21 +27,19 @@ const UserSchema = new mongoose.Schema({
   freePickaxes: { type: Number, default: 5 },
   lastRegen: { type: Date, default: Date.now },
   adPickaxes: { type: Number, default: 0 },
-  landLevel: { type: Number, default: 1 } // Cấp đất 1 đến 10
+  landLevel: { type: Number, default: 1 }
 });
 const User = mongoose.model('User', UserSchema);
 
-// 2. Mảnh đất của người chơi (200 ô, giấu kín 30 kim cương trên server)
 const LandSchema = new mongoose.Schema({
   telegramId: { type: String, required: true },
   landLevel: { type: Number, default: 1 },
-  diamondTiles: [Number], // 30 vị trí bí mật (0 đến 199)
-  dugTiles: [{ tileIndex: Number, hasDiamond: Boolean }], // Các ô đã đào
-  diamondsFound: { type: Number, default: 0 } // Đào đủ 30 thì lên cấp đất
+  diamondTiles: [Number],
+  dugTiles: [{ tileIndex: Number, hasDiamond: Boolean }],
+  diamondsFound: { type: Number, default: 0 }
 });
 const Land = mongoose.model('Land', LandSchema);
 
-// 3. Quản lý Pool Thưởng 3 ngày & 15.000 Ads
 const PoolSchema = new mongoose.Schema({
   cycleId: { type: String, required: true },
   totalAdsWatched: { type: Number, default: 0 },
@@ -52,7 +49,6 @@ const PoolSchema = new mongoose.Schema({
 });
 const Pool = mongoose.model('Pool', PoolSchema);
 
-// 4. Quản lý phiên xem Ads & chống xem trùng
 const AdSessionSchema = new mongoose.Schema({
   txId: { type: String, required: true, unique: true },
   telegramId: { type: String, required: true },
@@ -63,8 +59,6 @@ const AdSessionSchema = new mongoose.Schema({
 });
 const AdSession = mongoose.model('AdSession', AdSessionSchema);
 
-// ================= HÀM TIỆN ÍCH =================
-// Tạo 30 ô kim cương ngẫu nhiên trong 200 ô
 function generateDiamondTiles() {
   const set = new Set();
   while (set.size < 30) {
@@ -73,7 +67,6 @@ function generateDiamondTiles() {
   return Array.from(set);
 }
 
-// Lấy hoặc tạo Pool 3 ngày đang chạy
 async function getActivePool() {
   let pool = await Pool.findOne({ isActive: true });
   if (!pool) {
@@ -90,9 +83,9 @@ async function getActivePool() {
   return pool;
 }
 
-// ================= CÁC API CỦA GAME =================
+// ================= APIS =================
 
-// 1. Khởi động game & Đồng bộ dữ liệu
+// 1. Khởi động game
 app.post('/api/init', async (req, res) => {
   try {
     const { telegramId, username } = req.body;
@@ -106,7 +99,6 @@ app.post('/api/init', async (req, res) => {
       await user.save();
     }
 
-    // Tính toán hồi cuốc tự động (1 cuốc / 30 phút, tối đa 5)
     const now = new Date();
     const elapsedMinutes = (now - new Date(user.lastRegen)) / (1000 * 60);
     const regenCount = Math.floor(elapsedMinutes / 30);
@@ -116,7 +108,6 @@ app.post('/api/init', async (req, res) => {
       await user.save();
     }
 
-    // Lấy mảnh đất hiện tại
     let land = await Land.findOne({ telegramId, landLevel: user.landLevel });
     if (!land) {
       land = await Land.create({
@@ -143,7 +134,7 @@ app.post('/api/init', async (req, res) => {
       },
       land: {
         level: land.landLevel,
-        dugTiles: land.dugTiles, // CHỈ gửi các ô ĐÃ đào, giấu 30 ô kim cương còn lại
+        dugTiles: land.dugTiles,
         diamondsFound: land.diamondsFound
       },
       pool: {
@@ -154,42 +145,32 @@ app.post('/api/init', async (req, res) => {
       leaderboard
     });
   } catch (err) {
-    console.error('Lỗi Init:', err);
-    res.status(500).json({ error: 'Lỗi máy chủ' });
+    res.status(500).json({ error: 'Lỗi server' });
   }
 });
 
-// 2. Hành động Đào đất
+// 2. Đào đất
 app.post('/api/dig', async (req, res) => {
   try {
     const { telegramId, tileIndex } = req.body;
-    if (tileIndex < 0 || tileIndex >= 200) return res.status(400).json({ error: 'Ô đào không hợp lệ' });
-
     const user = await User.findOne({ telegramId });
-    if (!user) return res.status(404).json({ error: 'Không tìm thấy người chơi' });
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-    // Kiểm tra còn cuốc không
-    const totalPickaxes = user.freePickaxes + user.adPickaxes;
-    if (totalPickaxes <= 0) {
+    if (user.freePickaxes + user.adPickaxes <= 0) {
       return res.status(400).json({ error: 'HẾT_CUỐC' });
     }
 
-    // Lấy mảnh đất
     const land = await Land.findOne({ telegramId, landLevel: user.landLevel });
-    if (!land) return res.status(404).json({ error: 'Không tìm thấy mảnh đất' });
+    if (!land || land.dugTiles.some(t => t.tileIndex === tileIndex)) {
+      return res.status(400).json({ error: 'Ô này đã đào rồi' });
+    }
 
-    // Kiểm tra ô này đã đào chưa
-    const alreadyDug = land.dugTiles.some(t => t.tileIndex === tileIndex);
-    if (alreadyDug) return res.status(400).json({ error: 'Ô này đã đào rồi' });
-
-    // Trừ 1 cuốc (ưu tiên trừ free trước, hết free trừ adPickaxes)
     if (user.freePickaxes > 0) {
       user.freePickaxes -= 1;
     } else {
       user.adPickaxes -= 1;
     }
 
-    // Kiểm tra trúng kim cương hay trượt
     const isHit = land.diamondTiles.includes(tileIndex);
     land.dugTiles.push({ tileIndex, hasDiamond: isHit });
 
@@ -198,17 +179,14 @@ app.post('/api/dig', async (req, res) => {
     let newLevel = user.landLevel;
 
     if (isHit) {
-      // Kim cương nhận được = Cấp đất * 10
       diamondsGained = user.landLevel * 10;
       user.diamonds += diamondsGained;
       land.diamondsFound += 1;
 
-      // Nếu đã đào hết 30 viên kim cương của mảnh này -> Lên cấp đất tiếp theo!
       if (land.diamondsFound >= 30 && user.landLevel < 10) {
         user.landLevel += 1;
         newLevel = user.landLevel;
         leveledUp = true;
-        // Tạo sẵn mảnh đất mới cho cấp tiếp theo
         await Land.create({
           telegramId,
           landLevel: newLevel,
@@ -237,12 +215,11 @@ app.post('/api/dig', async (req, res) => {
       newLevel
     });
   } catch (err) {
-    console.error('Lỗi Dig:', err);
-    res.status(500).json({ error: 'Lỗi máy chủ' });
+    res.status(500).json({ error: 'Lỗi đào đất' });
   }
 });
 
-// 3. Tạo mã phiên xem Ads trước khi hiển thị video
+// 3. Tạo phiên xem Ads
 app.post('/api/ads/create-session', async (req, res) => {
   try {
     const { telegramId, action, diamondAmount } = req.body;
@@ -258,53 +235,53 @@ app.post('/api/ads/create-session', async (req, res) => {
 
     res.json({ success: true, txId });
   } catch (err) {
-    res.status(500).json({ error: 'Lỗi tạo phiên xem ad' });
+    res.status(500).json({ error: 'Lỗi tạo phiên' });
   }
 });
 
-// 4. WEBHOOK: Nhận S2S Postback từ Monetag khi người chơi xem xong video
+// 4. WEBHOOK S2S DUY NHẤT ĐƯỢC PHÉP CỘNG THƯỞNG (CHỐNG GIAN LẬN 100%)
 app.get('/webhook/monetag', async (req, res) => {
   try {
     const { secret, user_id, tx_id, action } = req.query;
 
-    // 1. Xác thực Secret Key
     if (secret !== MONETAG_SECRET) {
-      return res.status(403).send('Forbidden: Sai Secret Key');
+      console.warn('❌ Cảnh báo: Sai Secret Key từ Postback');
+      return res.status(403).send('Forbidden');
     }
 
-    // 2. Tìm phiên xem Ads
-    const session = await AdSession.findOne({ txId: tx_id });
-    if (!session || session.status === 'COMPLETED') {
-      return res.status(200).send('Session invalid or already rewarded');
+    let session = null;
+    if (tx_id) {
+      session = await AdSession.findOne({ txId: tx_id });
     }
 
-    session.status = 'COMPLETED';
-    await session.save();
-
-    // 3. Trao thưởng theo hành động
-    const targetUserId = session.telegramId || user_id;
-    if (session.action === 'GET_PICKAXE' || action === 'GET_PICKAXE') {
-      // Cộng 1 Cuốc
-      await User.updateOne({ telegramId: targetUserId }, { $inc: { adPickaxes: 1 } });
-    } else if (session.action === 'DOUBLE_DIAMOND' || action === 'DOUBLE_DIAMOND') {
-      // Nhân đôi kim cương (Cộng thêm đúng số kim cương vừa trúng)
-      if (session.diamondAmount > 0) {
-        await User.updateOne({ telegramId: targetUserId }, { $inc: { diamonds: session.diamondAmount } });
-      }
+    if (session && session.status === 'COMPLETED') {
+      return res.status(200).send('Already rewarded');
     }
 
-    // 4. Cộng dồn vào tiến độ 15.000 Ads của toàn Server
+    const targetUserId = session ? session.telegramId : user_id;
+    const targetAction = session ? session.action : (action || 'GET_PICKAXE');
+
+    if (session) {
+      session.status = 'COMPLETED';
+      await session.save();
+    }
+
+    if (targetAction === 'GET_PICKAXE') {
+      await User.updateOne({ telegramId: String(targetUserId) }, { $inc: { adPickaxes: 1 } });
+      console.log(`✅ [S2S POSTBACK THẬT] Monetag xác nhận cộng 1 cuốc cho: ${targetUserId}`);
+    } else if (targetAction === 'DOUBLE_DIAMOND' && session && session.diamondAmount > 0) {
+      await User.updateOne({ telegramId: String(targetUserId) }, { $inc: { diamonds: session.diamondAmount } });
+      console.log(`✅ [S2S POSTBACK THẬT] Monetag xác nhận X2 cho: ${targetUserId}`);
+    }
+
     await Pool.updateOne({ isActive: true }, { $inc: { totalAdsWatched: 1 } });
-
-    console.log(`🎉 [POSTBACK THÀNH CÔNG] User ${targetUserId} đã hoàn thành xem video: ${session.action}`);
     return res.status(200).send('OK');
   } catch (err) {
-    console.error('Lỗi Webhook Monetag:', err);
-    return res.status(500).send('Internal Error');
+    return res.status(500).send('Error');
   }
 });
 
-// 5. API Kiểm tra trạng thái phiên Ads (dùng để game tự động cộng cuốc trên màn hình)
+// 5. Kiểm tra trạng thái phiên xem (game polling hỏi server)
 app.get('/api/ads/check-session/:txId', async (req, res) => {
   const session = await AdSession.findOne({ txId: req.params.txId });
   if (session && session.status === 'COMPLETED') {
@@ -312,47 +289,14 @@ app.get('/api/ads/check-session/:txId', async (req, res) => {
   }
   return res.json({ completed: false });
 });
-// API Xác nhận thưởng ngay sau khi xem xong video Monetag
-app.post('/api/ads/claim-reward', async (req, res) => {
-  try {
-    const { telegramId, txId, action, diamondAmount } = req.body;
-    const session = await AdSession.findOne({ txId });
-    if (!session || session.status === 'COMPLETED') {
-      return res.json({ success: false, message: 'Đã nhận thưởng rồi' });
-    }
 
-    session.status = 'COMPLETED';
-    await session.save();
-
-    if (action === 'GET_PICKAXE') {
-      await User.updateOne({ telegramId: String(telegramId) }, { $inc: { adPickaxes: 1 } });
-    } else if (action === 'DOUBLE_DIAMOND' && diamondAmount > 0) {
-      await User.updateOne({ telegramId: String(telegramId) }, { $inc: { diamonds: diamondAmount } });
-    }
-
-    // Tăng bộ đếm Pool 15.000 Ads
-    await Pool.updateOne({ isActive: true }, { $inc: { totalAdsWatched: 1 } });
-
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: 'Lỗi claim' });
-  }
-});
 // ================= CRON JOB 3 NGÀY QUẢN LÝ POOL =================
 cron.schedule('0 0 */3 * *', async () => {
-  console.log('⏰ [CRON JOB] Đang kiểm tra chu kỳ Pool thưởng 3 ngày...');
   const pool = await getActivePool();
-  
   if (pool.totalAdsWatched >= 15000) {
-    console.log('🏆 [POOL THÀNH CÔNG] Đạt mốc 15.000 Ads! Phát thưởng Top 3.');
-    // Đánh dấu hoàn thành Pool cũ
     pool.isActive = false;
     await pool.save();
-
-    // Reset kim cương toàn bộ người chơi về 0 để bắt đầu chu kỳ mới
     await User.updateMany({}, { $set: { diamonds: 0 } });
-
-    // Tạo Pool 3 ngày mới
     const end = new Date();
     end.setDate(end.getDate() + 3);
     await Pool.create({
@@ -363,7 +307,6 @@ cron.schedule('0 0 */3 * *', async () => {
       isActive: true
     });
   } else {
-    console.log(`⚠️ [CHƯA ĐỦ 15.000 ADS] Hiện có: ${pool.totalAdsWatched}. Tự động cộng dồn thêm 3 ngày!`);
     const newEnd = new Date(pool.endDate);
     newEnd.setDate(newEnd.getDate() + 3);
     pool.endDate = newEnd;
