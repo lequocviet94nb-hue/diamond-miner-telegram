@@ -312,7 +312,32 @@ app.get('/api/ads/check-session/:txId', async (req, res) => {
   }
   return res.json({ completed: false });
 });
+// API Xác nhận thưởng ngay sau khi xem xong video Monetag
+app.post('/api/ads/claim-reward', async (req, res) => {
+  try {
+    const { telegramId, txId, action, diamondAmount } = req.body;
+    const session = await AdSession.findOne({ txId });
+    if (!session || session.status === 'COMPLETED') {
+      return res.json({ success: false, message: 'Đã nhận thưởng rồi' });
+    }
 
+    session.status = 'COMPLETED';
+    await session.save();
+
+    if (action === 'GET_PICKAXE') {
+      await User.updateOne({ telegramId: String(telegramId) }, { $inc: { adPickaxes: 1 } });
+    } else if (action === 'DOUBLE_DIAMOND' && diamondAmount > 0) {
+      await User.updateOne({ telegramId: String(telegramId) }, { $inc: { diamonds: diamondAmount } });
+    }
+
+    // Tăng bộ đếm Pool 15.000 Ads
+    await Pool.updateOne({ isActive: true }, { $inc: { totalAdsWatched: 1 } });
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Lỗi claim' });
+  }
+});
 // ================= CRON JOB 3 NGÀY QUẢN LÝ POOL =================
 cron.schedule('0 0 */3 * *', async () => {
   console.log('⏰ [CRON JOB] Đang kiểm tra chu kỳ Pool thưởng 3 ngày...');
