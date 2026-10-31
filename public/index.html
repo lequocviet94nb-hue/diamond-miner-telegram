@@ -95,13 +95,14 @@
       margin: 10px 16px;
       background: #252836;
       border-radius: 10px;
-      padding: 10px 14px;
+      padding: 12px 14px;
       border: 1px solid #38bdf8;
     }
     .pool-header {
       display: flex;
       justify-content: space-between;
-      font-size: 12px;
+      align-items: center;
+      font-size: 13px;
       margin-bottom: 6px;
       color: #38bdf8;
       font-weight: bold;
@@ -111,12 +112,39 @@
       height: 12px;
       border-radius: 6px;
       overflow: hidden;
+      margin-bottom: 8px;
     }
     .progress-bar-fill {
       background: linear-gradient(90deg, #38bdf8, #818cf8);
       height: 100%;
       width: 0%;
       transition: width 0.3s;
+    }
+
+    .cycle-time-card {
+      background: #191b24;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 11px;
+      color: #cbd5e1;
+      border: 1px solid #2e3446;
+      line-height: 1.6;
+    }
+    .cycle-time-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 2px;
+    }
+    .cycle-countdown-badge {
+      margin-top: 6px;
+      text-align: center;
+      background: rgba(250, 204, 21, 0.15);
+      color: #facc15;
+      font-weight: bold;
+      font-size: 12px;
+      padding: 5px;
+      border-radius: 6px;
+      border: 1px solid rgba(250, 204, 21, 0.4);
     }
 
     .grid-container {
@@ -276,14 +304,29 @@
     </div>
   </div>
 
-  <!-- TIẾN ĐỘ QUỸ THƯỞNG 3 NGÀY -->
+  <!-- TIẾN ĐỘ QUỸ THƯỞNG 3 NGÀY & ĐẾM NGƯỢC -->
   <div class="pool-box">
     <div class="pool-header">
       <span>🏆 Quỹ Thưởng 3 Ngày: 120.000đ</span>
-      <span id="pool-progress-text">0 / 15,000 Ads</span>
+      <span id="pool-progress-text">0 / 15,000 Ads (0%)</span>
     </div>
     <div class="progress-bar-bg">
       <div class="progress-bar-fill" id="pool-progress-fill"></div>
+    </div>
+
+    <!-- KHUNG THỜI GIAN BẮT ĐẦU - KẾT THÚC & ĐẾM NGƯỢC -->
+    <div class="cycle-time-card">
+      <div class="cycle-time-row">
+        <span>📅 <b>Bắt đầu:</b></span>
+        <span id="cycle-start-time" style="color: #4ade80;">Đang tải...</span>
+      </div>
+      <div class="cycle-time-row">
+        <span>🏁 <b>Chốt giải:</b></span>
+        <span id="cycle-end-time" style="color: #f87171;">Đang tải...</span>
+      </div>
+      <div class="cycle-countdown-badge" id="cycle-countdown">
+        ⏳ Đang đồng bộ thời gian...
+      </div>
     </div>
   </div>
 
@@ -292,10 +335,12 @@
 
   <!-- BẢNG XẾP HẠNG TOP 3 -->
   <div class="leaderboard-box">
-    <div class="lb-title">🎖️ BẢNG XẾP HẠNG (TRAO THƯỞNG MỖI 3 NGÀY)</div>
+    <div class="lb-title">🎖️ BẢNG XẾP HẠNG TOP 3 (TRAO THƯỞNG KHI HẾT GIỜ)</div>
     <div id="leaderboard-list">Đang tải xếp hạng...</div>
-    <div style="font-size: 11px; color: #94a3b8; margin-top: 8px;">
-      * Đạt đủ 15.000 Ads xem chung để kích hoạt quỹ tiền mặt. Người chơi trúng giải liên hệ Admin gửi mã ID để nhận tiền MoMo/ATM!
+    <div style="font-size: 11px; color: #94a3b8; margin-top: 10px; line-height: 1.5;">
+      * <b>Điều kiện trao giải:</b> Đạt đủ mốc 15.000 Ads xem chung khi đồng hồ đếm ngược về 0.<br>
+      * <b>Cơ cấu giải:</b> 🥇 Top 1: 50.000đ | 🥈 Top 2: 40.000đ | 🥉 Top 3: 30.000đ.<br>
+      * <b>Nhận thưởng:</b> Đúng thời điểm chốt giải, Admin sẽ liên hệ trực tiếp người chơi có mã Telegram ID trúng giải để chuyển tiền MoMo/ATM!
     </div>
   </div>
 
@@ -373,6 +418,44 @@
     let pendingX2Amount = 0;
     let pendingTileIndex = null;
     let isDigging = false;
+    let countdownTimer = null;
+
+    function formatDateVN(dateInput) {
+      if (!dateInput) return '---';
+      const d = new Date(dateInput);
+      const pad = n => String(n).padStart(2, '0');
+      return `${pad(d.getHours())}:${pad(d.getMinutes())} ngày ${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+    }
+
+    function startCountdown(endDateStr) {
+      if (countdownTimer) clearInterval(countdownTimer);
+      const target = new Date(endDateStr).getTime();
+
+      function tick() {
+        const now = Date.now();
+        const diff = target - now;
+
+        if (diff <= 0) {
+          document.getElementById('cycle-countdown').innerText = '🏁 Đã đến giờ chốt giải! Đang cập nhật...';
+          clearInterval(countdownTimer);
+          return;
+        }
+
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+        let text = '⏳ Còn lại: ';
+        if (days > 0) text += `${days} ngày `;
+        text += `${hours} giờ ${minutes} phút ${seconds} giây`;
+
+        document.getElementById('cycle-countdown').innerText = text;
+      }
+
+      tick();
+      countdownTimer = setInterval(tick, 1000);
+    }
 
     async function initGame() {
       try {
@@ -408,8 +491,16 @@
         const total = pool.totalAdsWatched || 0;
         const target = pool.targetAds || 15000;
         const pct = Math.min(100, Math.round((total / target) * 100));
-        document.getElementById('pool-progress-text').innerText = `${total.toLocaleString()} / ${target.toLocaleString()} Ads`;
+        document.getElementById('pool-progress-text').innerText = `${total.toLocaleString()} / ${target.toLocaleString()} Ads (${pct}%)`;
         document.getElementById('pool-progress-fill').style.width = `${pct}%`;
+
+        if (pool.startDate) {
+          document.getElementById('cycle-start-time').innerText = formatDateVN(pool.startDate);
+        }
+        if (pool.endDate) {
+          document.getElementById('cycle-end-time').innerText = formatDateVN(pool.endDate);
+          startCountdown(pool.endDate);
+        }
       }
 
       if (leaderboard && leaderboard.length > 0) {
@@ -605,26 +696,23 @@
       const checkInterval = setInterval(async () => {
         attempts++;
         try {
-          const res = await fetch(`${API_BASE}/api/ads/check-session/${txId}`).then(r => r.json());
+          const res = await fetch(`${API_BASE}/api/ads/check-session/${txId}?telegramId=${currentUser.telegramId}`).then(r => r.json());
           
-          if (res.status === 'VERIFIED') {
+          if (res.completed) {
             clearInterval(checkInterval);
-            currentUser.adPickaxes = res.adPickaxes;
-            currentUser.diamonds = res.diamonds;
-            updateUI();
+            initGame();
             
             if (action === 'GET_PICKAXE') {
               alert('🎉 Bạn đã nhận được +1 Cuốc Đào!');
             } else {
               alert(`🎉 Bạn đã nhận thêm +${pendingX2Amount} Kim Cương (X2 thành công)!`);
             }
-            initGame();
-          } else if (res.status === 'REJECTED') {
+          } else if (res.rejected) {
             clearInterval(checkInterval);
-            alert('⚠️ Bạn chưa xem đủ 15 giây hoặc đã tắt quảng cáo quá sớm nên không nhận được thưởng!');
+            alert('⚠️ ' + (res.message || 'Bạn đã tắt quảng cáo quá sớm nên không nhận được thưởng!'));
           } else if (attempts >= maxAttempts) {
             clearInterval(checkInterval);
-            alert('⚠️ Bạn chưa xem đủ thời gian hoặc hệ thống quảng cáo chưa kịp ghi nhận. Vui lòng thử lại sau!');
+            alert('⚠️ Bạn chưa xem đủ 15 giây hoặc hệ thống quảng cáo chưa kịp ghi nhận. Vui lòng thử lại!');
           }
         } catch (e) {
           console.error('Kiểm tra phiên lỗi:', e);
