@@ -328,7 +328,6 @@
       
       const diamondEl = document.getElementById('u-diamonds');
       diamondEl.innerText = user.diamonds.toLocaleString();
-      // Đổi màu đỏ nếu kim cương bị âm
       if (user.diamonds < 0) {
         document.getElementById('diamond-box').style.color = '#ef4444';
       } else {
@@ -468,19 +467,24 @@
       }
     }
 
+    // ĐÃ TĂNG THỜI GIAN LÊN 20 GIÂY VÀ TRUYỀN TELEGRAM_ID ĐỂ KHÔNG BỊ BÁO LỖI
     function verifyRewardWithServer(txId) {
       let attempts = 0;
-      const maxAttempts = 6;
+      const maxAttempts = 10; // Kiểm tra 10 lần x 2s = 20 giây
+      
       const checkTimer = setInterval(async () => {
         attempts++;
         try {
-          const res = await fetch('/api/ads/check-session/' + txId);
+          const res = await fetch(`/api/ads/check-session/${txId}?telegramId=${userData.id}`);
           const data = await res.json();
+
           if (data.completed) {
+            // MONETAG ĐÃ GỬI POSTBACK VALUED THÀNH CÔNG
             clearInterval(checkTimer);
-            alert("🎉 Chúc mừng! Monetag đã xác nhận bạn xem đủ video và cộng thưởng thành công!");
+            alert("🎉 Chúc mừng! Monetag đã xác nhận bạn xem đủ video và cộng 1 cuốc thành công!");
             loadGame();
           } else if (attempts >= maxAttempts) {
+            // HẾT 20 GIÂY MÀ MONETAG KHÔNG BẮN POSTBACK (DO TẮT SỚM)
             clearInterval(checkTimer);
             alert("⚠️ Bạn chưa xem hết video hoặc đã tắt sớm nên không nhận được cuốc!");
             loadGame();
