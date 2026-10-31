@@ -46,20 +46,20 @@
     }
     
     .stats-row {
-      display: flex;
-      gap: 8px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
       margin-bottom: 8px;
     }
     .stat-card {
-      flex: 1;
       background: #1f222e;
       border: 1px solid #3b3f54;
       border-radius: 8px;
-      padding: 6px;
+      padding: 6px 2px;
       text-align: center;
     }
-    .stat-title { font-size: 11px; color: #94a3b8; }
-    .stat-val { font-size: 15px; font-weight: bold; margin-top: 2px; }
+    .stat-title { font-size: 10px; color: #94a3b8; white-space: nowrap; }
+    .stat-val { font-size: 14px; font-weight: bold; margin-top: 2px; }
 
     .btn-ad-pickaxe {
       width: 100%;
@@ -89,6 +89,20 @@
       padding: 4px 8px;
       border-radius: 6px;
       border: 1px dashed rgba(250, 204, 21, 0.3);
+    }
+
+    .land-progress-box {
+      margin: 10px 16px;
+      background: #1f222e;
+      border-radius: 10px;
+      padding: 10px 12px;
+      border: 1px solid #3b3f54;
+    }
+    .land-progress-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      margin-bottom: 6px;
     }
 
     .pool-box {
@@ -280,17 +294,22 @@
       <div class="land-badge" id="land-level">Mảnh Đất 1/10</div>
     </div>
     
+    <!-- 4 Ô THỐNG KÊ (HIỂN THỊ RÕ RÀNG TIẾN ĐỘ 30 KIM CƯƠNG) -->
     <div class="stats-row">
       <div class="stat-card">
         <div class="stat-title">💎 Kim Cương</div>
         <div class="stat-val" id="diamond-count" style="color: #38bdf8;">0</div>
       </div>
+      <div class="stat-card" style="border-color: #38bdf8;">
+        <div class="stat-title" style="color: #38bdf8;">🎯 Đã Tìm</div>
+        <div class="stat-val" id="diamonds-found-badge" style="color: #38bdf8;">0/30</div>
+      </div>
       <div class="stat-card">
-        <div class="stat-title">⛏️ Cuốc Hồi (Tối đa 5)</div>
+        <div class="stat-title">⛏️ Cuốc Hồi</div>
         <div class="stat-val" id="free-pickaxes" style="color: #4ade80;">5/5</div>
       </div>
       <div class="stat-card">
-        <div class="stat-title">🎬 Cuốc Xem Ads</div>
+        <div class="stat-title">🎬 Cuốc Ads</div>
         <div class="stat-val" id="ad-pickaxes" style="color: #facc15;">0</div>
       </div>
     </div>
@@ -301,6 +320,20 @@
     
     <div class="ad-tip-notice">
       💡 <b>Mẹo:</b> Xem khoảng 15s rồi bấm <b>dấu [X] ở góc trên quảng cáo</b> để nhận cuốc ngay trong game (Không cần bấm nút Continue).
+    </div>
+  </div>
+
+  <!-- TIẾN ĐỘ TÌM 30 KIM CƯƠNG CỦA MẢNH ĐẤT HIỆN TẠI -->
+  <div class="land-progress-box">
+    <div class="land-progress-header">
+      <span>🎯 <b>Tiến độ Mảnh Đất <span id="land-num-text">1</span>:</b></span>
+      <span id="land-progress-text" style="color: #38bdf8; font-weight: bold;">0 / 30 Kim Cương (0%)</span>
+    </div>
+    <div class="progress-bar-bg" style="height: 10px; margin-bottom: 4px;">
+      <div class="progress-bar-fill" id="land-progress-fill" style="background: linear-gradient(90deg, #38bdf8, #22c55e); width: 0%;"></div>
+    </div>
+    <div style="font-size: 10px; color: #94a3b8; text-align: right;">
+      * Khai thác đủ <b>30/30 ô kim cương</b> sẽ tự động chuyển sang Mảnh Đất tiếp theo!
     </div>
   </div>
 
@@ -483,9 +516,17 @@
       document.getElementById('username').innerText = currentUser.username;
       document.getElementById('user-id-display').innerText = `Mã ID: ${currentUser.telegramId}`;
       document.getElementById('land-level').innerText = `Mảnh Đất ${currentUser.landLevel}/10`;
+      document.getElementById('land-num-text').innerText = currentUser.landLevel;
       document.getElementById('diamond-count').innerText = currentUser.diamonds;
       document.getElementById('free-pickaxes').innerText = `${currentUser.freePickaxes}/5`;
       document.getElementById('ad-pickaxes').innerText = currentUser.adPickaxes;
+
+      // CẬP NHẬT TIẾN ĐỘ 30 KIM CƯƠNG
+      const found = (currentLand && currentLand.diamondsFound !== undefined) ? currentLand.diamondsFound : 0;
+      document.getElementById('diamonds-found-badge').innerText = `${found}/30`;
+      const landPct = Math.min(100, Math.round((found / 30) * 100));
+      document.getElementById('land-progress-text').innerText = `${found} / 30 Kim Cương (${landPct}%)`;
+      document.getElementById('land-progress-fill').style.width = `${landPct}%`;
 
       if (pool) {
         const total = pool.totalAdsWatched || 0;
@@ -588,6 +629,10 @@
         currentUser.freePickaxes = res.freePickaxes;
         currentUser.adPickaxes = res.adPickaxes;
         currentUser.diamonds = res.diamonds;
+        if (res.diamondsFound !== undefined) {
+          if (!currentLand) currentLand = {};
+          currentLand.diamondsFound = res.diamondsFound;
+        }
         updateUI();
 
         tileElem.onclick = null;
