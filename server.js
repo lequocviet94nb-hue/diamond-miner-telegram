@@ -141,7 +141,8 @@ app.post('/api/init', async (req, res) => {
     }
 
     const pool = await getActivePool();
-    const leaderboard = await User.find().sort({ diamonds: -1 }).limit(3).select('username diamonds');
+    // ĐÃ THÊM telegramId VÀO ĐÂY ĐỂ TRẢ VỀ ID CHO BẢNG XẾP HẠNG
+    const leaderboard = await User.find().sort({ diamonds: -1 }).limit(3).select('username telegramId diamonds');
 
     res.json({
       success: true,
@@ -201,7 +202,7 @@ app.post('/api/dig', async (req, res) => {
 
     if (isHitBomb) {
       resultType = 'BOMB';
-      user.diamonds -= 20; // Bị nổ bom trừ 20 điểm (cho phép âm)
+      user.diamonds -= 20;
     } else if (isHitDiamond) {
       resultType = 'DIAMOND';
       diamondsGained = user.landLevel * 10;
@@ -269,7 +270,7 @@ app.post('/api/ads/create-session', async (req, res) => {
   }
 });
 
-// ================= WEBHOOK S2S MONETAG ĐÃ CẮT BỎ DẤU $ =================
+// ================= WEBHOOK S2S MONETAG ĐÃ CẮT DẤU $ =================
 app.get('/webhook/monetag', async (req, res) => {
   try {
     const { secret, user_id, reward_type, tx_id, action } = req.query;
@@ -279,18 +280,15 @@ app.get('/webhook/monetag', async (req, res) => {
       return res.status(403).send('Forbidden');
     }
 
-    // TỰ ĐỘNG CẮT BỎ DẤU $ NẾU MONETAG TRUYỀN SANG ($valued -> valued, $5911522940 -> 5911522940)
     const cleanRewardType = String(reward_type || '').replace(/^\$/, '').trim();
     const cleanUserId = String(user_id || '').replace(/^\$/, '').trim();
     const cleanTxId = String(tx_id || '').replace(/^\$/, '').trim();
 
-    // 1. Chỉ chấp nhận nếu Monetag xác nhận 'valued' (Đã trả tiền thật)
     if (cleanRewardType !== 'valued') {
       console.warn(`⚠️ Bỏ qua lượt xem không hợp lệ (reward_type: ${cleanRewardType}) của user: ${cleanUserId}`);
       return res.status(200).send('Ignored non-valued view');
     }
 
-    // 2. Tìm phiên xem Ads của người chơi
     let session = null;
     if (cleanTxId && cleanTxId.startsWith('tx_')) {
       session = await AdSession.findOne({ txId: cleanTxId });
@@ -314,7 +312,6 @@ app.get('/webhook/monetag', async (req, res) => {
       await session.save();
     }
 
-    // 3. CỘNG CUỐC HOẶC X2
     if (targetAction === 'GET_PICKAXE') {
       await User.updateOne({ telegramId: targetUserId }, { $inc: { adPickaxes: 1 } });
       console.log(`🎉 [THÀNH CÔNG] ĐÃ CỘNG 1 CUỐC CHO USER: ${targetUserId}`);
@@ -323,9 +320,7 @@ app.get('/webhook/monetag', async (req, res) => {
       console.log(`🎉 [THÀNH CÔNG] ĐÃ X2 CHO USER: ${targetUserId}`);
     }
 
-    // 4. TĂNG TIẾN ĐỘ QUỸ THƯỞNG 15.000 ADS
     await Pool.updateOne({ isActive: true }, { $inc: { totalAdsWatched: 1 } });
-
     return res.status(200).send('OK');
   } catch (err) {
     console.error('Lỗi Webhook Monetag:', err);
@@ -333,7 +328,6 @@ app.get('/webhook/monetag', async (req, res) => {
   }
 });
 
-// API Polling kiểm tra cuốc
 app.get('/api/ads/check-session/:txId', async (req, res) => {
   const { txId } = req.params;
   const { telegramId } = req.query;
