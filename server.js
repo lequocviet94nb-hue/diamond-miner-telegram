@@ -23,7 +23,7 @@ mongoose.connect(MONGODB_URI)
 const UserSchema = new mongoose.Schema({
   telegramId: { type: String, required: true, unique: true },
   username: { type: String, default: 'Thợ Mỏ' },
-  diamonds: { type: Number, default: 0 }, // Cho phép âm nếu trúng bom
+  diamonds: { type: Number, default: 0 },
   freePickaxes: { type: Number, default: 5 },
   lastRegen: { type: Date, default: Date.now },
   adPickaxes: { type: Number, default: 0 },
@@ -34,13 +34,13 @@ const User = mongoose.model('User', UserSchema);
 const LandSchema = new mongoose.Schema({
   telegramId: { type: String, required: true },
   landLevel: { type: Number, default: 1 },
-  diamondTiles: [Number], // 30 vị trí kim cương
-  bombTiles: [Number],    // 10 vị trí bom
+  diamondTiles: [Number],
+  bombTiles: [Number],
   dugTiles: [{ 
     tileIndex: Number, 
     type: { type: String, enum: ['EMPTY', 'DIAMOND', 'BOMB'] } 
   }],
-  diamondsFound: { type: Number, default: 0 } // Bắt buộc đạt 30 mới qua mảnh đất mới
+  diamondsFound: { type: Number, default: 0 }
 });
 const Land = mongoose.model('Land', LandSchema);
 
@@ -63,13 +63,11 @@ const AdSessionSchema = new mongoose.Schema({
 });
 const AdSession = mongoose.model('AdSession', AdSessionSchema);
 
-// Tạo 30 ô Kim Cương và 10 ô Bom ngẫu nhiên (hoàn toàn không trùng nhau)
 function generateLandTiles() {
   const allUsed = new Set();
   const diamondTiles = [];
   const bombTiles = [];
 
-  // Tạo 30 ô Kim Cương
   while (diamondTiles.length < 30) {
     const r = Math.floor(Math.random() * 200);
     if (!allUsed.has(r)) {
@@ -78,7 +76,6 @@ function generateLandTiles() {
     }
   }
 
-  // Tạo 10 ô Bom
   while (bombTiles.length < 10) {
     const r = Math.floor(Math.random() * 200);
     if (!allUsed.has(r)) {
@@ -108,7 +105,6 @@ async function getActivePool() {
 
 // ================= APIS =================
 
-// 1. Khởi động game
 app.post('/api/init', async (req, res) => {
   try {
     const { telegramId, username } = req.body;
@@ -122,7 +118,6 @@ app.post('/api/init', async (req, res) => {
       await user.save();
     }
 
-    // Hồi cuốc tự động (1 cuốc / 30 phút, tối đa 5)
     const now = new Date();
     const elapsedMinutes = (now - new Date(user.lastRegen)) / (1000 * 60);
     const regenCount = Math.floor(elapsedMinutes / 30);
@@ -132,7 +127,6 @@ app.post('/api/init', async (req, res) => {
       await user.save();
     }
 
-    // Lấy hoặc tạo mảnh đất
     let land = await Land.findOne({ telegramId, landLevel: user.landLevel });
     if (!land) {
       const { diamondTiles, bombTiles } = generateLandTiles();
@@ -144,19 +138,6 @@ app.post('/api/init', async (req, res) => {
         dugTiles: [],
         diamondsFound: 0
       });
-    } else if (!land.bombTiles || land.bombTiles.length === 0) {
-      // Tự động bổ sung 10 ô bom cho các mảnh đất đã tạo trước đó
-      const used = new Set(land.diamondTiles);
-      const bombs = [];
-      while (bombs.length < 10) {
-        const r = Math.floor(Math.random() * 200);
-        if (!used.has(r)) {
-          used.add(r);
-          bombs.push(r);
-        }
-      }
-      land.bombTiles = bombs;
-      await land.save();
     }
 
     const pool = await getActivePool();
@@ -189,7 +170,6 @@ app.post('/api/init', async (req, res) => {
   }
 });
 
-// 2. Đào đất (Xử lý Kim Cương & Bom)
 app.post('/api/dig', async (req, res) => {
   try {
     const { telegramId, tileIndex } = req.body;
@@ -205,7 +185,6 @@ app.post('/api/dig', async (req, res) => {
       return res.status(400).json({ error: 'Ô này đã đào rồi' });
     }
 
-    // Trừ 1 cuốc
     if (user.freePickaxes > 0) {
       user.freePickaxes -= 1;
     } else {
@@ -221,23 +200,19 @@ app.post('/api/dig', async (req, res) => {
     let newLevel = user.landLevel;
 
     if (isHitBomb) {
-      // 💣 ĐÀO TRÚNG BOM: Nổ và trừ 20 kim cương (cho phép âm)
       resultType = 'BOMB';
-      user.diamonds -= 20;
+      user.diamonds -= 20; // Bị nổ bom trừ 20 điểm (cho phép âm)
     } else if (isHitDiamond) {
-      // 💎 ĐÀO TRÚNG KIM CƯƠNG
       resultType = 'DIAMOND';
       diamondsGained = user.landLevel * 10;
       user.diamonds += diamondsGained;
       land.diamondsFound += 1;
 
-      // ĐIỀU KIỆN LÊN CẤP ĐẤT MỚI: BẮT BUỘC KHAI THÁC HẾT 30 KIM CƯƠNG
+      // Phải đào đủ 30 kim cương mới lên cấp đất tiếp theo
       if (land.diamondsFound >= 30 && user.landLevel < 10) {
         user.landLevel += 1;
         newLevel = user.landLevel;
         leveledUp = true;
-
-        // Tạo mảnh đất mới với 30 Kim Cương và 10 Bom mới
         const nextTiles = generateLandTiles();
         await Land.create({
           telegramId,
@@ -276,7 +251,6 @@ app.post('/api/dig', async (req, res) => {
   }
 });
 
-// 3. Tạo phiên xem Ads
 app.post('/api/ads/create-session', async (req, res) => {
   try {
     const { telegramId, action, diamondAmount } = req.body;
@@ -296,19 +270,33 @@ app.post('/api/ads/create-session', async (req, res) => {
   }
 });
 
-// 4. Webhook S2S Monetag (Chống gian lận 100%)
+// ================= WEBHOOK S2S MONETAG ĐÃ LỌC VALUED 100% =================
 app.get('/webhook/monetag', async (req, res) => {
   try {
-    const { secret, user_id, tx_id, action } = req.query;
+    const { secret, user_id, reward_type, tx_id, action } = req.query;
 
+    // 1. Kiểm tra mã bí mật
     if (secret !== MONETAG_SECRET) {
       console.warn('❌ Cảnh báo: Sai Secret Key từ Postback');
       return res.status(403).send('Forbidden');
     }
 
+    // 2. CHỐNG THOÁT SỚM: Chỉ chấp nhận nếu Monetag xác nhận 'valued' (Đã trả tiền)
+    if (reward_type && reward_type !== 'valued') {
+      console.warn(`⚠️ Bỏ qua lượt xem không hợp lệ (reward_type: ${reward_type}) của user: ${user_id}`);
+      return res.status(200).send('Ignored non-valued view');
+    }
+
+    // 3. Tìm phiên xem: Khớp theo tx_id hoặc tìm phiên PENDING gần nhất của Telegram ID này
     let session = null;
-    if (tx_id) {
+    if (tx_id && tx_id !== '${ymid}' && tx_id.startsWith('tx_')) {
       session = await AdSession.findOne({ txId: tx_id });
+    }
+    if (!session && user_id) {
+      session = await AdSession.findOne({ 
+        telegramId: String(user_id), 
+        status: 'PENDING' 
+      }).sort({ createdAt: -1 });
     }
 
     if (session && session.status === 'COMPLETED') {
@@ -323,27 +311,43 @@ app.get('/webhook/monetag', async (req, res) => {
       await session.save();
     }
 
+    // 4. Cộng cuốc hoặc X2 Kim cương
     if (targetAction === 'GET_PICKAXE') {
       await User.updateOne({ telegramId: String(targetUserId) }, { $inc: { adPickaxes: 1 } });
-      console.log(`✅ [S2S POSTBACK THẬT] Cộng 1 cuốc cho: ${targetUserId}`);
+      console.log(`✅ [HỢP LỆ - VALUED] Đã cộng 1 cuốc cho user: ${targetUserId}`);
     } else if (targetAction === 'DOUBLE_DIAMOND' && session && session.diamondAmount > 0) {
       await User.updateOne({ telegramId: String(targetUserId) }, { $inc: { diamonds: session.diamondAmount } });
-      console.log(`✅ [S2S POSTBACK THẬT] X2 kim cương cho: ${targetUserId}`);
+      console.log(`✅ [HỢP LỆ - VALUED] Đã X2 kim cương cho user: ${targetUserId}`);
     }
 
+    // 5. CHỈ TĂNG BỘ ĐẾM POOL KHI QUẢNG CÁO HỢP LỆ THẬT SỰ
     await Pool.updateOne({ isActive: true }, { $inc: { totalAdsWatched: 1 } });
+
     return res.status(200).send('OK');
   } catch (err) {
+    console.error('Lỗi Webhook Monetag:', err);
     return res.status(500).send('Error');
   }
 });
 
-// 5. Kiểm tra phiên xem Ads
+// Kiểm tra phiên xem hoàn thành (Kiểm tra theo txId hoặc kiểm tra theo user)
 app.get('/api/ads/check-session/:txId', async (req, res) => {
-  const session = await AdSession.findOne({ txId: req.params.txId });
+  const { txId } = req.params;
+  const { telegramId } = req.query;
+
+  let session = await AdSession.findOne({ txId });
   if (session && session.status === 'COMPLETED') {
-    return res.json({ completed: true, action: session.action });
+    return res.json({ completed: true });
   }
+
+  // Dự phòng: nếu tìm theo Telegram ID thấy phiên gần nhất đã hoàn tất
+  if (telegramId) {
+    const latest = await AdSession.findOne({ telegramId: String(telegramId) }).sort({ createdAt: -1 });
+    if (latest && latest.status === 'COMPLETED') {
+      return res.json({ completed: true });
+    }
+  }
+
   return res.json({ completed: false });
 });
 
