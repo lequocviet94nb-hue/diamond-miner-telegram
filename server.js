@@ -57,7 +57,8 @@ const AdSessionSchema = new mongoose.Schema({
   txId: { type: String, required: true, unique: true },
   telegramId: { type: String, required: true },
   action: { type: String, enum: ['GET_PICKAXE', 'DOUBLE_DIAMOND'] },
-  status: { type: String, default: 'PENDING' },
+  status: { type: String, default: 'PENDING' }, // PENDING, COMPLETED, REJECTED
+  postbackReceived: { type: Boolean, default: false }, // Đã nhận tín hiệu từ Monetag chưa
   diamondAmount: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now, expires: 3600 }
 });
@@ -141,7 +142,6 @@ app.post('/api/init', async (req, res) => {
     }
 
     const pool = await getActivePool();
-    // ĐÃ THÊM telegramId VÀO ĐÂY ĐỂ TRẢ VỀ ID CHO BẢNG XẾP HẠNG
     const leaderboard = await User.find().sort({ diamonds: -1 }).limit(3).select('username telegramId diamonds');
 
     res.json({
@@ -202,7 +202,7 @@ app.post('/api/dig', async (req, res) => {
 
     if (isHitBomb) {
       resultType = 'BOMB';
-      user.diamonds -= 20;
+      user.diamonds -= 20; // Bị nổ bom trừ 20 điểm (cho phép âm)
     } else if (isHitDiamond) {
       resultType = 'DIAMOND';
       diamondsGained = user.landLevel * 10;
@@ -261,7 +261,9 @@ app.post('/api/ads/create-session', async (req, res) => {
       telegramId: String(telegramId).replace(/^\$/, ''),
       action: action || 'GET_PICKAXE',
       diamondAmount: diamondAmount || 0,
-      status: 'PENDING'
+      status: 'PENDING',
+      postbackReceived: false,
+      createdAt: new Date()
     });
 
     res.json({ success: true, txId });
@@ -270,13 +272,12 @@ app.post('/api/ads/create-session', async (req, res) => {
   }
 });
 
-// ================= WEBHOOK S2S MONETAG ĐÃ CẮT DẤU $ =================
+// ================= WEBHOOK S2S MONETAG =================
 app.get('/webhook/monetag', async (req, res) => {
   try {
-    const { secret, user_id, reward_type, tx_id, action } = req.query;
+    const { secret, user_id, reward_type, tx_id } = req.query;
 
     if (secret !== MONETAG_SECRET) {
-      console.warn('❌ Cảnh báo: Sai Secret Key từ Postback');
       return res.status(403).send('Forbidden');
     }
 
@@ -286,9 +287,10 @@ app.get('/webhook/monetag', async (req, res) => {
 
     if (cleanRewardType !== 'valued') {
       console.warn(`⚠️ Bỏ qua lượt xem không hợp lệ (reward_type: ${cleanRewardType}) của user: ${cleanUserId}`);
-      return res.status(200).send('Ignored non-valued view');
+      return res.status(200).send('Ignored non-valued');
     }
 
+    // Đánh dấu phiên này Monetag đã ghi nhận trả tiền
     let session = null;
     if (cleanTxId && cleanTxId.startsWith('tx_')) {
       session = await AdSession.findOne({ txId: cleanTxId });
@@ -300,52 +302,81 @@ app.get('/webhook/monetag', async (req, res) => {
       }).sort({ createdAt: -1 });
     }
 
-    if (session && session.status === 'COMPLETED') {
-      return res.status(200).send('Already rewarded');
-    }
-
-    const targetUserId = session ? session.telegramId : cleanUserId;
-    const targetAction = session ? session.action : (action || 'GET_PICKAXE');
-
     if (session) {
-      session.status = 'COMPLETED';
+      session.postbackReceived = true; // Đã nhận tín hiệu Monetag
       await session.save();
+      console.log(`📡 Đã nhận tín hiệu Monetag cho phiên: ${session.txId}`);
     }
 
-    if (targetAction === 'GET_PICKAXE') {
-      await User.updateOne({ telegramId: targetUserId }, { $inc: { adPickaxes: 1 } });
-      console.log(`🎉 [THÀNH CÔNG] ĐÃ CỘNG 1 CUỐC CHO USER: ${targetUserId}`);
-    } else if (targetAction === 'DOUBLE_DIAMOND' && session && session.diamondAmount > 0) {
-      await User.updateOne({ telegramId: targetUserId }, { $inc: { diamonds: session.diamondAmount } });
-      console.log(`🎉 [THÀNH CÔNG] ĐÃ X2 CHO USER: ${targetUserId}`);
-    }
-
-    await Pool.updateOne({ isActive: true }, { $inc: { totalAdsWatched: 1 } });
     return res.status(200).send('OK');
   } catch (err) {
-    console.error('Lỗi Webhook Monetag:', err);
     return res.status(500).send('Error');
   }
 });
 
+// ================= KIỂM TRA THỜI GIAN VÀ CỘNG THƯỞNG (CHẶT CHẼ 100%) =================
 app.get('/api/ads/check-session/:txId', async (req, res) => {
-  const { txId } = req.params;
-  const { telegramId } = req.query;
-  const cleanUser = String(telegramId || '').replace(/^\$/, '').trim();
+  try {
+    const { txId } = req.params;
+    const { telegramId } = req.query;
+    const cleanUser = String(telegramId || '').replace(/^\$/, '').trim();
 
-  let session = await AdSession.findOne({ txId });
-  if (session && session.status === 'COMPLETED') {
-    return res.json({ completed: true });
-  }
+    let session = await AdSession.findOne({ txId });
+    if (!session && cleanUser) {
+      session = await AdSession.findOne({ telegramId: cleanUser }).sort({ createdAt: -1 });
+    }
 
-  if (cleanUser) {
-    const latest = await AdSession.findOne({ telegramId: cleanUser }).sort({ createdAt: -1 });
-    if (latest && latest.status === 'COMPLETED') {
+    if (!session) {
+      return res.json({ completed: false });
+    }
+
+    if (session.status === 'COMPLETED') {
       return res.json({ completed: true });
     }
-  }
 
-  return res.json({ completed: false });
+    if (session.status === 'REJECTED') {
+      return res.json({ completed: false, rejected: true, message: 'Bạn đã tắt quảng cáo quá sớm!' });
+    }
+
+    // ĐO THỜI GIAN THỰC TẾ NGƯỜI CHƠI XEM QUẢNG CÁO (TÍNH BẰNG GIÂY)
+    const elapsedSeconds = (Date.now() - new Date(session.createdAt).getTime()) / 1000;
+
+    // 1. NẾU THOÁT RA QUÁ SỚM (DƯỚI 15 GIÂY) -> HỦY BỎ NGAY LẬP TỨC!
+    if (elapsedSeconds < 15) {
+      session.status = 'REJECTED';
+      await session.save();
+      console.warn(`🚫 [CHẶN GIAN LẬN] User ${session.telegramId} tắt sớm (${elapsedSeconds.toFixed(1)}s < 15s) -> HỦY BỎ!`);
+      return res.json({ 
+        completed: false, 
+        rejected: true, 
+        message: `Bạn đã tắt quảng cáo quá sớm (mới được ${Math.floor(elapsedSeconds)} giây)! Phải xem ít nhất 15 giây mới được tính!` 
+      });
+    }
+
+    // 2. BẮT BUỘC: ĐÃ ĐỦ 15 GIÂY VÀ MONETAG ĐÃ GỬI TÍN HIỆU XÁC NHẬN TRẢ TIỀN
+    if (session.postbackReceived && session.status === 'PENDING') {
+      session.status = 'COMPLETED';
+      await session.save();
+
+      // CỘNG CUỐC HOẶC X2
+      if (session.action === 'GET_PICKAXE') {
+        await User.updateOne({ telegramId: session.telegramId }, { $inc: { adPickaxes: 1 } });
+        console.log(`🎉 [XEM ĐỦ 15S + HỢP LỆ] ĐÃ CỘNG 1 CUỐC CHO USER: ${session.telegramId}`);
+      } else if (session.action === 'DOUBLE_DIAMOND' && session.diamondAmount > 0) {
+        await User.updateOne({ telegramId: session.telegramId }, { $inc: { diamonds: session.diamondAmount } });
+        console.log(`🎉 [XEM ĐỦ 15S + HỢP LỆ] ĐÃ X2 CHO USER: ${session.telegramId}`);
+      }
+
+      // CHỈ KHI XEM ĐỦ 15S HỢP LỆ MỚI TĂNG TIẾN ĐỘ QUỸ THƯỞNG 15.000 ADS
+      await Pool.updateOne({ isActive: true }, { $inc: { totalAdsWatched: 1 } });
+
+      return res.json({ completed: true });
+    }
+
+    return res.json({ completed: false });
+  } catch (err) {
+    return res.status(500).json({ error: 'Lỗi check' });
+  }
 });
 
 // ================= CRON JOB 3 NGÀY =================
