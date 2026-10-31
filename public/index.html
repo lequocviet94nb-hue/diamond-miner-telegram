@@ -5,7 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Vua Đào Kim Cương</title>
   
+  <!-- Telegram WebApp SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <!-- Monetag SDK Thật -->
   <script src="//libtl.com/sdk.js" data-zone="12154176" data-sdk="show_12154176"></script>
 
   <style>
@@ -14,7 +17,7 @@
       background: #1a1c23;
       color: #fff;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      padding-bottom: 40px;
+      padding-bottom: 30px;
     }
     
     .header {
@@ -31,19 +34,8 @@
       align-items: center;
       margin-bottom: 8px;
     }
-    .user-info { 
-      font-size: 13px; 
-      color: #4ade80; 
-      font-weight: bold;
-      display: flex;
-      flex-direction: column;
-    }
-    .user-id-sub {
-      font-size: 11px;
-      color: #94a3b8;
-      font-weight: normal;
-      margin-top: 2px;
-    }
+    .user-info { font-weight: bold; font-size: 13px; color: #4ade80; }
+    .user-id-badge { font-size: 11px; color: #94a3b8; margin-top: 2px; }
     .land-badge {
       background: #eab308;
       color: #000;
@@ -67,7 +59,7 @@
       text-align: center;
     }
     .stat-title { font-size: 11px; color: #94a3b8; }
-    .stat-val { font-size: 16px; font-weight: bold; margin-top: 2px; }
+    .stat-val { font-size: 15px; font-weight: bold; margin-top: 2px; }
 
     .btn-ad-pickaxe {
       width: 100%;
@@ -87,8 +79,20 @@
     }
     .btn-ad-pickaxe:active { transform: scale(0.98); }
 
+    .ad-tip-notice {
+      font-size: 11px;
+      color: #facc15;
+      text-align: center;
+      margin-top: 6px;
+      line-height: 1.4;
+      background: rgba(250, 204, 21, 0.1);
+      padding: 4px 8px;
+      border-radius: 6px;
+      border: 1px dashed rgba(250, 204, 21, 0.3);
+    }
+
     .pool-box {
-      margin: 12px 16px;
+      margin: 10px 16px;
       background: #252836;
       border-radius: 10px;
       padding: 10px 14px;
@@ -172,68 +176,68 @@
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.8);
-      display: none;
+      background: rgba(0,0,0,0.75);
+      display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 999;
-      padding: 20px;
+      z-index: 1000;
+      visibility: hidden;
+      opacity: 0;
+      transition: 0.2s;
+      padding: 16px;
     }
-    .modal-card {
-      background: #252836;
+    .modal-overlay.active {
+      visibility: visible;
+      opacity: 1;
+    }
+    .modal-content {
+      background: #1f222e;
       border-radius: 16px;
-      padding: 24px;
+      padding: 20px;
+      width: 100%;
+      max-width: 340px;
       text-align: center;
-      max-width: 320px;
-      width: 100%;
-      border: 2px solid #3b82f6;
+      border: 1px solid #3b3f54;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
     }
-    .modal-card.bomb-card { border: 2px solid #ef4444; }
-    .modal-title { font-size: 20px; font-weight: bold; margin-bottom: 8px; }
-    .modal-desc { font-size: 14px; color: #cbd5e1; margin-bottom: 20px; }
-    .modal-btn {
-      width: 100%;
+    .modal-title { font-size: 18px; font-weight: bold; margin-bottom: 8px; }
+    .modal-desc { font-size: 13px; color: #cbd5e1; margin-bottom: 16px; line-height: 1.4; }
+    .btn-group { display: flex; flex-direction: column; gap: 8px; }
+    .btn-modal {
       padding: 12px;
       border-radius: 8px;
       font-weight: bold;
+      font-size: 14px;
       border: none;
       cursor: pointer;
-      margin-bottom: 8px;
-      font-size: 15px;
     }
-    .btn-primary { background: #22c55e; color: #fff; }
-    .btn-danger { background: #ef4444; color: #fff; }
-    .btn-secondary { background: #475569; color: #fff; }
+    .btn-gold {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: #fff;
+    }
+    .btn-gray {
+      background: #334155;
+      color: #94a3b8;
+    }
 
-    /* Leaderboard Box */
     .leaderboard-box {
       margin: 16px;
-      background: #252836;
+      background: #1f222e;
       border-radius: 10px;
-      padding: 14px;
+      padding: 12px;
       border: 1px solid #3b3f54;
     }
+    .lb-title { font-size: 14px; font-weight: bold; margin-bottom: 8px; color: #f59e0b; }
     .lb-item {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 13px;
-      padding: 8px 0;
-      border-bottom: 1px solid #323649;
+      font-size: 12px;
+      padding: 6px 0;
+      border-bottom: 1px solid #2a2e3f;
     }
-    .lb-item:last-child { border: none; }
-    .lb-user-block { display: flex; flex-direction: column; }
-    .lb-id-tag { font-size: 11px; color: #94a3b8; font-weight: normal; }
-
-    .prize-instruction {
-      margin-top: 10px;
-      padding: 8px;
-      background: #1e2230;
-      border-radius: 6px;
-      font-size: 11px;
-      color: #cbd5e1;
-      line-height: 1.4;
-    }
+    .lb-rank { font-weight: bold; width: 20px; }
+    .lb-prize { color: #4ade80; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -241,295 +245,401 @@
   <!-- HEADER -->
   <div class="header">
     <div class="top-bar">
-      <div class="user-info">
-        <span id="u-name">⛏ Đang tải...</span>
-        <span class="user-id-sub">Mã ID: <b id="u-id" style="color: #38bdf8;">...</b></span>
+      <div>
+        <div class="user-info" id="username">Thợ Mỏ</div>
+        <div class="user-id-badge" id="user-id-display">ID: ...</div>
       </div>
-      <span class="land-badge" id="u-land">CẤP 1 (10 💎/ô)</span>
+      <div class="land-badge" id="land-level">Mảnh Đất 1/10</div>
     </div>
+    
     <div class="stats-row">
       <div class="stat-card">
-        <div class="stat-title">Kim Cương</div>
-        <div class="stat-val" id="diamond-box" style="color: #38bdf8;">💎 <span id="u-diamonds">0</span></div>
+        <div class="stat-title">💎 Kim Cương</div>
+        <div class="stat-val" id="diamond-count" style="color: #38bdf8;">0</div>
       </div>
       <div class="stat-card">
-        <div class="stat-title">Cuốc Hiện Có</div>
-        <div class="stat-val" style="color: #4ade80;">⛏ <span id="u-pickaxes">0</span></div>
+        <div class="stat-title">⛏️ Cuốc Hồi (Tối đa 5)</div>
+        <div class="stat-val" id="free-pickaxes" style="color: #4ade80;">5/5</div>
       </div>
       <div class="stat-card">
-        <div class="stat-title">Kim Cương Đất Này</div>
-        <div class="stat-val" style="color: #facc15;"><span id="u-found">0</span>/30</div>
+        <div class="stat-title">🎬 Cuốc Xem Ads</div>
+        <div class="stat-val" id="ad-pickaxes" style="color: #facc15;">0</div>
       </div>
     </div>
-    <button class="btn-ad-pickaxe" onclick="watchAdForPickaxe()">
-      📺 Xem Video (+1 Cuốc Đào)
+
+    <button class="btn-ad-pickaxe" onclick="handleWatchAdForPickaxe()">
+      🎬 Xem Ads Nhận Cuốc Đào (+1 Cuốc)
     </button>
+    
+    <div class="ad-tip-notice">
+      💡 <b>Mẹo:</b> Xem khoảng 15s rồi bấm <b>dấu [X] ở góc trên quảng cáo</b> để nhận cuốc ngay trong game (Không cần bấm nút Continue).
+    </div>
   </div>
 
-  <!-- POOL TIẾN ĐỘ 15.000 ADS -->
+  <!-- TIẾN ĐỘ QUỸ THƯỞNG 3 NGÀY -->
   <div class="pool-box">
     <div class="pool-header">
       <span>🏆 Quỹ Thưởng 3 Ngày: 120.000đ</span>
-      <span id="pool-count">0 / 15.000 Ads</span>
+      <span id="pool-progress-text">0 / 15,000 Ads</span>
     </div>
     <div class="progress-bar-bg">
-      <div class="progress-bar-fill" id="pool-fill"></div>
+      <div class="progress-bar-fill" id="pool-progress-fill"></div>
     </div>
   </div>
 
-  <!-- BÀN CỜ 200 Ô -->
+  <!-- BẢN ĐỒ 200 Ô ĐẤT -->
   <div class="grid-container" id="grid"></div>
 
   <!-- BẢNG XẾP HẠNG TOP 3 -->
   <div class="leaderboard-box">
-    <div style="font-weight: bold; font-size: 14px; margin-bottom: 8px; color: #facc15;">
-      🥇 Đua Top 3 Ngày (Top 1: 50k, Top 2: 40k, Top 3: 30k)
-    </div>
-    <div id="lb-list">Đang tải xếp hạng...</div>
-    
-    <div class="prize-instruction">
-      🎁 <b>Cách nhận thưởng:</b> Khi kết thúc chu kỳ 3 ngày, Top 3 người chơi hãy chụp màn hình có <b>Mã ID</b> của bạn và nhắn tin cho Admin để nhận tiền qua <b>MoMo / ATM</b>!
+    <div class="lb-title">🎖️ BẢNG XẾP HẠNG (TRAO THƯỞNG MỖI 3 NGÀY)</div>
+    <div id="leaderboard-list">Đang tải xếp hạng...</div>
+    <div style="font-size: 11px; color: #94a3b8; margin-top: 8px;">
+      * Đạt đủ 15.000 Ads xem chung để kích hoạt quỹ tiền mặt. Người chơi trúng giải liên hệ Admin gửi mã ID để nhận tiền MoMo/ATM!
     </div>
   </div>
 
-  <!-- MODAL TRÚNG KIM CƯƠNG -->
-  <div class="modal-overlay" id="modal-double">
-    <div class="modal-card">
-      <div class="modal-title">💎 TRÚNG KIM CƯƠNG!</div>
-      <div class="modal-desc" id="double-desc">Bạn vừa nhận được Kim Cương!</div>
-      <button class="modal-btn btn-primary" onclick="watchAdForDouble()">📺 Xem Video Để X2</button>
-      <button class="modal-btn btn-secondary" onclick="closeModal('modal-double')">Bỏ Qua</button>
-    </div>
-  </div>
-
-  <!-- MODAL ĐÀO TRÚNG BOM -->
-  <div class="modal-overlay" id="modal-bomb">
-    <div class="modal-card bomb-card">
-      <div class="modal-title" style="color: #ef4444;">💥 BÙM! DẪM PHẢI BOM!</div>
-      <div class="modal-desc">Bạn vừa đào trúng Bom nổ!<br><b style="color: #ef4444; font-size: 16px;">Bị trừ 20 Kim Cương!</b></div>
-      <button class="modal-btn btn-danger" onclick="closeModal('modal-bomb')">Đã Hiểu</button>
+  <!-- MODAL X2 KIM CƯƠNG KHI ĐÀO ĐƯỢC -->
+  <div class="modal-overlay" id="modal-x2">
+    <div class="modal-content">
+      <div class="modal-title" style="color: #38bdf8;">🎉 CHÚC MỪNG!</div>
+      <div class="modal-desc" id="modal-x2-desc">Bạn vừa đào trúng kim cương!</div>
+      <div class="btn-group">
+        <button class="btn-modal btn-gold" onclick="acceptX2Ad()">
+          🎬 Xem Ads Để Nhân Đôi (X2)
+        </button>
+        <button class="btn-modal btn-gray" onclick="closeModal('modal-x2')">
+          Bỏ Qua
+        </button>
+      </div>
+      <div style="font-size: 11px; color: #facc15; margin-top: 8px;">
+        💡 Nhìn hết 15s rồi bấm dấu [X] để nhận X2 nhé!
+      </div>
     </div>
   </div>
 
   <!-- MODAL HẾT CUỐC -->
   <div class="modal-overlay" id="modal-no-pickaxe">
-    <div class="modal-card">
-      <div class="modal-title">⚠️ BẠN ĐÃ HẾT CUỐC!</div>
-      <div class="modal-desc">Cuốc miễn phí hồi 1 cái mỗi 30 phút. Hoặc xem 1 video để nhận ngay 1 cuốc đào!</div>
-      <button class="modal-btn btn-primary" onclick="watchAdForPickaxe()">📺 Xem Video Nhận 1 Cuốc Ngay</button>
-      <button class="modal-btn btn-secondary" onclick="closeModal('modal-no-pickaxe')">Đợi Hồi Tự Nhiên</button>
+    <div class="modal-content">
+      <div class="modal-title" style="color: #ef4444;">⛏️ BẠN ĐÃ HẾT CUỐC!</div>
+      <div class="modal-desc">
+        Hệ thống tự động hồi 1 cuốc sau mỗi 30 phút (tối đa 5 cuốc).<br>
+        Xem quảng cáo ngắn để nhận thêm cuốc đào không giới hạn!
+      </div>
+      <div class="btn-group">
+        <button class="btn-modal btn-gold" onclick="closeModal('modal-no-pickaxe'); handleWatchAdForPickaxe();">
+          🎬 Xem Ads (+1 Cuốc Ngay)
+        </button>
+        <button class="btn-modal btn-gray" onclick="closeModal('modal-no-pickaxe')">
+          Để Sau
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL TRÚNG BOM -->
+  <div class="modal-overlay" id="modal-bomb">
+    <div class="modal-content">
+      <div class="modal-title" style="color: #ef4444;">💥 OÁCH! TRÚNG BOM!</div>
+      <div class="modal-desc" id="modal-bomb-desc">
+        Bạn vừa đào phải bom! Đã bị nổ và trừ 20 kim cương!
+      </div>
+      <div class="btn-group">
+        <button class="btn-modal btn-gray" onclick="closeModal('modal-bomb')">
+          Tiếp Tục Đào
+        </button>
+      </div>
     </div>
   </div>
 
   <script>
-    const tg = window.Telegram ? window.Telegram.WebApp : null;
+    const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
     if (tg) {
       tg.expand();
-      tg.ready();
+      tg.enableClosingConfirmation();
     }
 
-    const userData = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) 
-      ? tg.initDataUnsafe.user 
-      : { id: "5911522940", first_name: "Thợ Mỏ" };
+    const API_BASE = window.location.origin;
+    let currentUser = {
+      telegramId: (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? String(tg.initDataUnsafe.user.id) : '5911522940',
+      username: (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? (tg.initDataUnsafe.user.first_name || 'Thợ Mỏ') : 'KIEM TIEN',
+      diamonds: 0,
+      freePickaxes: 5,
+      adPickaxes: 0,
+      landLevel: 1
+    };
 
-    let currentDiamondsGained = 0;
-    let dugMap = new Map();
+    let currentLand = null;
+    let pendingX2Amount = 0;
+    let pendingTileIndex = null;
+    let isDigging = false;
 
-    async function loadGame() {
+    async function initGame() {
       try {
-        const res = await fetch('/api/init', {
+        const res = await fetch(`${API_BASE}/api/init`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ telegramId: String(userData.id), username: userData.first_name })
-        });
-        const data = await res.json();
-        if (data.success) {
-          updateUI(data.user, data.land, data.pool, data.leaderboard);
+          body: JSON.stringify({
+            telegramId: currentUser.telegramId,
+            username: currentUser.username
+          })
+        }).then(r => r.json());
+
+        if (res.user) {
+          currentUser = { ...currentUser, ...res.user };
+          currentLand = res.land;
+          updateUI(res.pool, res.leaderboard);
+          renderGrid(res.land);
         }
       } catch (err) {
-        console.error(err);
+        console.error('Lỗi khởi tạo game:', err);
       }
     }
 
-    function updateUI(user, land, pool, lb) {
-      document.getElementById('u-name').innerText = '⛏ ' + user.username;
-      document.getElementById('u-id').innerText = user.telegramId;
-      document.getElementById('u-land').innerText = `CẤP ${user.landLevel} (${user.landLevel * 10} 💎/ô)`;
-      
-      const diamondEl = document.getElementById('u-diamonds');
-      diamondEl.innerText = user.diamonds.toLocaleString();
-      if (user.diamonds < 0) {
-        document.getElementById('diamond-box').style.color = '#ef4444';
-      } else {
-        document.getElementById('diamond-box').style.color = '#38bdf8';
+    function updateUI(pool, leaderboard) {
+      document.getElementById('username').innerText = currentUser.username;
+      document.getElementById('user-id-display').innerText = `Mã ID: ${currentUser.telegramId}`;
+      document.getElementById('land-level').innerText = `Mảnh Đất ${currentUser.landLevel}/10`;
+      document.getElementById('diamond-count').innerText = currentUser.diamonds;
+      document.getElementById('free-pickaxes').innerText = `${currentUser.freePickaxes}/5`;
+      document.getElementById('ad-pickaxes').innerText = currentUser.adPickaxes;
+
+      if (pool) {
+        const total = pool.totalAdsWatched || 0;
+        const target = pool.targetAds || 15000;
+        const pct = Math.min(100, Math.round((total / target) * 100));
+        document.getElementById('pool-progress-text').innerText = `${total.toLocaleString()} / ${target.toLocaleString()} Ads`;
+        document.getElementById('pool-progress-fill').style.width = `${pct}%`;
       }
 
-      document.getElementById('u-pickaxes').innerText = user.freePickaxes + user.adPickaxes;
-      document.getElementById('u-found').innerText = land.diamondsFound;
-
-      const pct = Math.min(100, (pool.totalAdsWatched / pool.targetAds) * 100);
-      document.getElementById('pool-count').innerText = `${pool.totalAdsWatched} / ${pool.targetAds.toLocaleString()} Ads`;
-      document.getElementById('pool-fill').style.width = pct + '%';
-
-      dugMap.clear();
-      land.dugTiles.forEach(t => dugMap.set(t.tileIndex, t.type || (t.hasDiamond ? 'DIAMOND' : 'EMPTY')));
-      renderGrid();
-
-      // HIỂN THỊ CẢ TÊN VÀ ID CỦA TOP 3 NGƯỜI CHƠI
-      let lbHtml = '';
-      lb.forEach((u, idx) => {
-        const medal = idx === 0 ? '🥇' : (idx === 1 ? '🥈' : '🥉');
-        lbHtml += `
-          <div class="lb-item">
-            <div class="lb-user-block">
-              <span>${medal} ${u.username}</span>
-              <span class="lb-id-tag">ID: ${u.telegramId || '---'}</span>
+      if (leaderboard && leaderboard.length > 0) {
+        const prizes = ['50.000đ', '40.000đ', '30.000đ'];
+        const medals = ['🥇', '🥈', '🥉'];
+        let html = '';
+        leaderboard.forEach((u, i) => {
+          html += `
+            <div class="lb-item">
+              <span class="lb-rank">${medals[i] || (i+1)}</span>
+              <span style="flex: 1; margin-left: 8px;">
+                <b>${u.username}</b> <span style="font-size: 10px; color: #94a3b8;">(ID: ${u.telegramId || '...'})</span>
+              </span>
+              <span style="color: #38bdf8; margin-right: 12px;">💎 ${u.diamonds}</span>
+              <span class="lb-prize">${prizes[i] || ''}</span>
             </div>
-            <b style="color:#38bdf8;">${u.diamonds.toLocaleString()} 💎</b>
-          </div>`;
-      });
-      document.getElementById('lb-list').innerHTML = lbHtml || 'Chưa có dữ liệu';
+          `;
+        });
+        document.getElementById('leaderboard-list').innerHTML = html;
+      }
     }
 
-    function renderGrid() {
-      const container = document.getElementById('grid');
-      container.innerHTML = '';
+    function renderGrid(land) {
+      const grid = document.getElementById('grid');
+      grid.innerHTML = '';
+
+      const dugMap = {};
+      if (land && land.dugTiles) {
+        land.dugTiles.forEach(d => {
+          dugMap[d.tileIndex] = d.type;
+        });
+      }
+
       for (let i = 0; i < 200; i++) {
-        const div = document.createElement('div');
-        div.className = 'tile';
-        if (dugMap.has(i)) {
-          const type = dugMap.get(i);
-          if (type === 'DIAMOND') {
-            div.classList.add('dug-diamond');
-            div.innerText = '💎';
-          } else if (type === 'BOMB') {
-            div.classList.add('dug-bomb');
-            div.innerText = '💣';
+        const tile = document.createElement('div');
+        tile.className = 'tile';
+        tile.dataset.index = i;
+
+        if (dugMap[i]) {
+          if (dugMap[i] === 'DIAMOND') {
+            tile.classList.add('dug-diamond');
+            tile.innerText = '💎';
+          } else if (dugMap[i] === 'BOMB') {
+            tile.classList.add('dug-bomb');
+            tile.innerText = '💥';
           } else {
-            div.classList.add('dug-empty');
-            div.innerText = '•';
+            tile.classList.add('dug-empty');
+            tile.innerText = '•';
           }
         } else {
-          div.onclick = () => digTile(i);
+          tile.onclick = () => handleDig(i, tile);
         }
-        container.appendChild(div);
+
+        grid.appendChild(tile);
       }
     }
 
-    async function digTile(tileIndex) {
-      if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+    async function handleDig(tileIndex, tileElem) {
+      if (isDigging) return;
+
+      const totalPickaxes = currentUser.freePickaxes + currentUser.adPickaxes;
+      if (totalPickaxes <= 0) {
+        openModal('modal-no-pickaxe');
+        return;
+      }
+
+      isDigging = true;
 
       try {
-        const res = await fetch('/api/dig', {
+        const res = await fetch(`${API_BASE}/api/dig`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ telegramId: String(userData.id), tileIndex })
-        });
-        const data = await res.json();
+          body: JSON.stringify({
+            telegramId: currentUser.telegramId,
+            tileIndex: tileIndex
+          })
+        }).then(r => r.json());
 
-        if (data.error === 'HẾT_CUỐC') {
-          document.getElementById('modal-no-pickaxe').style.display = 'flex';
+        if (res.error) {
+          alert(res.error);
+          isDigging = false;
           return;
         }
 
-        if (data.success) {
-          dugMap.set(tileIndex, data.type);
-          
-          const diamondEl = document.getElementById('u-diamonds');
-          diamondEl.innerText = data.user.diamonds.toLocaleString();
-          if (data.user.diamonds < 0) {
-            document.getElementById('diamond-box').style.color = '#ef4444';
-          } else {
-            document.getElementById('diamond-box').style.color = '#38bdf8';
-          }
+        currentUser.freePickaxes = res.freePickaxes;
+        currentUser.adPickaxes = res.adPickaxes;
+        currentUser.diamonds = res.diamonds;
+        updateUI();
 
-          document.getElementById('u-pickaxes').innerText = data.user.freePickaxes + data.user.adPickaxes;
-          document.getElementById('u-found').innerText = data.diamondsFound;
-          renderGrid();
+        tileElem.onclick = null;
 
-          if (data.hitBomb) {
-            if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
-            document.getElementById('modal-bomb').style.display = 'flex';
-          }
-
-          if (data.hitDiamond) {
-            if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-            currentDiamondsGained = data.diamondsGained;
-            document.getElementById('double-desc').innerText = `Bạn vừa nhận được +${data.diamondsGained} Kim Cương! Xem video để nhận thêm +${data.diamondsGained} nữa?`;
-            document.getElementById('modal-double').style.display = 'flex';
-          }
-
-          if (data.leveledUp) {
-            alert(`🎉 TUYỆT ĐỈNH! Bạn đã khai thác đủ 30 Kim Cương và mở khóa MẢNH ĐẤT CẤP ${data.newLevel}!`);
-            loadGame();
-          }
+        if (res.result === 'DIAMOND') {
+          tileElem.classList.add('dug-diamond');
+          tileElem.innerText = '💎';
+          pendingX2Amount = res.diamondEarned;
+          pendingTileIndex = tileIndex;
+          document.getElementById('modal-x2-desc').innerHTML = `
+            Bạn đã tìm thấy <b>+${res.diamondEarned} 💎</b>!<br>
+            Xem quảng cáo ngắn để <b>X2 thành +${res.diamondEarned * 2} 💎</b>?
+          `;
+          openModal('modal-x2');
+        } else if (res.result === 'BOMB') {
+          tileElem.classList.add('dug-bomb');
+          tileElem.innerText = '💥';
+          document.getElementById('modal-bomb-desc').innerHTML = `
+            Nổ bom! Bạn bị <b>trừ 20 💎</b>!<br>
+            Số dư kim cương hiện tại: <b>${res.diamonds} 💎</b>
+          `;
+          openModal('modal-bomb');
+        } else {
+          tileElem.classList.add('dug-empty');
+          tileElem.innerText = '•';
         }
+
+        if (res.landCompleted) {
+          alert(`🎉 CHÚC MỪNG! Bạn đã tìm đủ 30 ô kim cương và hoàn thành Mảnh Đất ${res.oldLevel}!\nTiến lên Mảnh Đất ${res.newLevel}!`);
+          currentUser.landLevel = res.newLevel;
+          initGame();
+        }
+
       } catch (err) {
-        console.error(err);
+        console.error('Lỗi khi đào ô:', err);
+      } finally {
+        isDigging = false;
       }
     }
 
-    async function watchAdForPickaxe() {
-      closeModal('modal-no-pickaxe');
-      await runMonetagAd('GET_PICKAXE', 0);
-    }
-
-    async function watchAdForDouble() {
-      closeModal('modal-double');
-      await runMonetagAd('DOUBLE_DIAMOND', currentDiamondsGained);
-    }
-
-    async function runMonetagAd(action, amount) {
+    async function handleWatchAdForPickaxe() {
       try {
-        const res = await fetch('/api/ads/create-session', {
+        const res = await fetch(`${API_BASE}/api/ads/create-session`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ telegramId: String(userData.id), action, diamondAmount: amount })
-        });
-        const { txId } = await res.json();
+          body: JSON.stringify({
+            telegramId: currentUser.telegramId,
+            action: 'GET_PICKAXE'
+          })
+        }).then(r => r.json());
+
+        if (!res.txId) {
+          alert('Không thể tạo phiên xem quảng cáo. Vui lòng thử lại!');
+          return;
+        }
 
         if (typeof window.show_12154176 === 'function') {
-          window.show_12154176({ ymid: txId, request_var: action }).then(() => {
-            verifyRewardWithServer(txId);
-          }).catch((err) => {
-            verifyRewardWithServer(txId);
+          window.show_12154176().then(() => {
+            verifyRewardWithServer(res.txId, 'GET_PICKAXE');
+          }).catch(err => {
+            console.error('Quảng cáo lỗi hoặc bị chặn:', err);
+            alert('Quảng cáo chưa sẵn sàng. Bạn vui lòng thử lại sau vài giây!');
           });
         } else {
-          alert("Quảng cáo đang tải, vui lòng thử lại sau 3 giây!");
+          alert('Hệ thống quảng cáo đang tải. Bạn vui lòng bấm lại sau 3 giây!');
         }
       } catch (err) {
-        console.error("Lỗi xem ad:", err);
+        console.error('Lỗi xem Ads:', err);
       }
     }
 
-    function verifyRewardWithServer(txId) {
+    async function acceptX2Ad() {
+      closeModal('modal-x2');
+      try {
+        const res = await fetch(`${API_BASE}/api/ads/create-session`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            telegramId: currentUser.telegramId,
+            action: 'DOUBLE_DIAMOND',
+            diamondAmount: pendingX2Amount
+          })
+        }).then(r => r.json());
+
+        if (!res.txId) {
+          alert('Không thể tạo phiên xem quảng cáo.');
+          return;
+        }
+
+        if (typeof window.show_12154176 === 'function') {
+          window.show_12154176().then(() => {
+            verifyRewardWithServer(res.txId, 'DOUBLE_DIAMOND');
+          }).catch(err => {
+            alert('Không thể phát quảng cáo lúc này!');
+          });
+        }
+      } catch (err) {
+        console.error('Lỗi X2 Ads:', err);
+      }
+    }
+
+    async function verifyRewardWithServer(txId, action) {
       let attempts = 0;
       const maxAttempts = 10;
-      const checkTimer = setInterval(async () => {
+      
+      const checkInterval = setInterval(async () => {
         attempts++;
         try {
-          const res = await fetch(`/api/ads/check-session/${txId}?telegramId=${userData.id}`);
-          const data = await res.json();
-          if (data.completed) {
-            clearInterval(checkTimer);
-            alert("🎉 Chúc mừng! Monetag đã xác nhận bạn xem đủ video và cộng 1 cuốc thành công!");
-            loadGame();
+          const res = await fetch(`${API_BASE}/api/ads/check-session/${txId}`).then(r => r.json());
+          
+          if (res.status === 'VERIFIED') {
+            clearInterval(checkInterval);
+            currentUser.adPickaxes = res.adPickaxes;
+            currentUser.diamonds = res.diamonds;
+            updateUI();
+            
+            if (action === 'GET_PICKAXE') {
+              alert('🎉 Bạn đã nhận được +1 Cuốc Đào!');
+            } else {
+              alert(`🎉 Bạn đã nhận thêm +${pendingX2Amount} Kim Cương (X2 thành công)!`);
+            }
+            initGame();
+          } else if (res.status === 'REJECTED') {
+            clearInterval(checkInterval);
+            alert('⚠️ Bạn chưa xem đủ 15 giây hoặc đã tắt quảng cáo quá sớm nên không nhận được thưởng!');
           } else if (attempts >= maxAttempts) {
-            clearInterval(checkTimer);
-            alert("⚠️ Bạn chưa xem hết video hoặc đã tắt sớm nên không nhận được cuốc!");
-            loadGame();
+            clearInterval(checkInterval);
+            alert('⚠️ Bạn chưa xem đủ thời gian hoặc hệ thống quảng cáo chưa kịp ghi nhận. Vui lòng thử lại sau!');
           }
         } catch (e) {
-          console.error(e);
+          console.error('Kiểm tra phiên lỗi:', e);
         }
       }, 2000);
     }
 
+    function openModal(id) {
+      document.getElementById(id).classList.add('active');
+    }
     function closeModal(id) {
-      document.getElementById(id).style.display = 'none';
+      document.getElementById(id).classList.remove('active');
     }
 
-    loadGame();
+    window.onload = initGame;
   </script>
 </body>
 </html>
