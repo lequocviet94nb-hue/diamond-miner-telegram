@@ -208,7 +208,6 @@ app.post('/api/dig', async (req, res) => {
       user.diamonds += diamondsGained;
       land.diamondsFound += 1;
 
-      // Phải đào đủ 30 kim cương mới lên cấp đất tiếp theo
       if (land.diamondsFound >= 30 && user.landLevel < 10) {
         user.landLevel += 1;
         newLevel = user.landLevel;
@@ -258,7 +257,7 @@ app.post('/api/ads/create-session', async (req, res) => {
 
     await AdSession.create({
       txId,
-      telegramId,
+      telegramId: String(telegramId).replace(/^\$/, ''),
       action: action || 'GET_PICKAXE',
       diamondAmount: diamondAmount || 0,
       status: 'PENDING'
@@ -270,31 +269,35 @@ app.post('/api/ads/create-session', async (req, res) => {
   }
 });
 
-// ================= WEBHOOK S2S MONETAG ĐÃ LỌC VALUED 100% =================
+// ================= WEBHOOK S2S MONETAG ĐÃ CẮT BỎ DẤU $ =================
 app.get('/webhook/monetag', async (req, res) => {
   try {
     const { secret, user_id, reward_type, tx_id, action } = req.query;
 
-    // 1. Kiểm tra mã bí mật
     if (secret !== MONETAG_SECRET) {
       console.warn('❌ Cảnh báo: Sai Secret Key từ Postback');
       return res.status(403).send('Forbidden');
     }
 
-    // 2. CHỐNG THOÁT SỚM: Chỉ chấp nhận nếu Monetag xác nhận 'valued' (Đã trả tiền)
-    if (reward_type && reward_type !== 'valued') {
-      console.warn(`⚠️ Bỏ qua lượt xem không hợp lệ (reward_type: ${reward_type}) của user: ${user_id}`);
+    // TỰ ĐỘNG CẮT BỎ DẤU $ NẾU MONETAG TRUYỀN SANG ($valued -> valued, $5911522940 -> 5911522940)
+    const cleanRewardType = String(reward_type || '').replace(/^\$/, '').trim();
+    const cleanUserId = String(user_id || '').replace(/^\$/, '').trim();
+    const cleanTxId = String(tx_id || '').replace(/^\$/, '').trim();
+
+    // 1. Chỉ chấp nhận nếu Monetag xác nhận 'valued' (Đã trả tiền thật)
+    if (cleanRewardType !== 'valued') {
+      console.warn(`⚠️ Bỏ qua lượt xem không hợp lệ (reward_type: ${cleanRewardType}) của user: ${cleanUserId}`);
       return res.status(200).send('Ignored non-valued view');
     }
 
-    // 3. Tìm phiên xem: Khớp theo tx_id hoặc tìm phiên PENDING gần nhất của Telegram ID này
+    // 2. Tìm phiên xem Ads của người chơi
     let session = null;
-    if (tx_id && tx_id !== '${ymid}' && tx_id.startsWith('tx_')) {
-      session = await AdSession.findOne({ txId: tx_id });
+    if (cleanTxId && cleanTxId.startsWith('tx_')) {
+      session = await AdSession.findOne({ txId: cleanTxId });
     }
-    if (!session && user_id) {
+    if (!session && cleanUserId) {
       session = await AdSession.findOne({ 
-        telegramId: String(user_id), 
+        telegramId: cleanUserId, 
         status: 'PENDING' 
       }).sort({ createdAt: -1 });
     }
@@ -303,7 +306,7 @@ app.get('/webhook/monetag', async (req, res) => {
       return res.status(200).send('Already rewarded');
     }
 
-    const targetUserId = session ? session.telegramId : user_id;
+    const targetUserId = session ? session.telegramId : cleanUserId;
     const targetAction = session ? session.action : (action || 'GET_PICKAXE');
 
     if (session) {
@@ -311,16 +314,16 @@ app.get('/webhook/monetag', async (req, res) => {
       await session.save();
     }
 
-    // 4. Cộng cuốc hoặc X2 Kim cương
+    // 3. CỘNG CUỐC HOẶC X2
     if (targetAction === 'GET_PICKAXE') {
-      await User.updateOne({ telegramId: String(targetUserId) }, { $inc: { adPickaxes: 1 } });
-      console.log(`✅ [HỢP LỆ - VALUED] Đã cộng 1 cuốc cho user: ${targetUserId}`);
+      await User.updateOne({ telegramId: targetUserId }, { $inc: { adPickaxes: 1 } });
+      console.log(`🎉 [THÀNH CÔNG] ĐÃ CỘNG 1 CUỐC CHO USER: ${targetUserId}`);
     } else if (targetAction === 'DOUBLE_DIAMOND' && session && session.diamondAmount > 0) {
-      await User.updateOne({ telegramId: String(targetUserId) }, { $inc: { diamonds: session.diamondAmount } });
-      console.log(`✅ [HỢP LỆ - VALUED] Đã X2 kim cương cho user: ${targetUserId}`);
+      await User.updateOne({ telegramId: targetUserId }, { $inc: { diamonds: session.diamondAmount } });
+      console.log(`🎉 [THÀNH CÔNG] ĐÃ X2 CHO USER: ${targetUserId}`);
     }
 
-    // 5. CHỈ TĂNG BỘ ĐẾM POOL KHI QUẢNG CÁO HỢP LỆ THẬT SỰ
+    // 4. TĂNG TIẾN ĐỘ QUỸ THƯỞNG 15.000 ADS
     await Pool.updateOne({ isActive: true }, { $inc: { totalAdsWatched: 1 } });
 
     return res.status(200).send('OK');
@@ -330,19 +333,19 @@ app.get('/webhook/monetag', async (req, res) => {
   }
 });
 
-// Kiểm tra phiên xem hoàn thành (Kiểm tra theo txId hoặc kiểm tra theo user)
+// API Polling kiểm tra cuốc
 app.get('/api/ads/check-session/:txId', async (req, res) => {
   const { txId } = req.params;
   const { telegramId } = req.query;
+  const cleanUser = String(telegramId || '').replace(/^\$/, '').trim();
 
   let session = await AdSession.findOne({ txId });
   if (session && session.status === 'COMPLETED') {
     return res.json({ completed: true });
   }
 
-  // Dự phòng: nếu tìm theo Telegram ID thấy phiên gần nhất đã hoàn tất
-  if (telegramId) {
-    const latest = await AdSession.findOne({ telegramId: String(telegramId) }).sort({ createdAt: -1 });
+  if (cleanUser) {
+    const latest = await AdSession.findOne({ telegramId: cleanUser }).sort({ createdAt: -1 });
     if (latest && latest.status === 'COMPLETED') {
       return res.json({ completed: true });
     }
