@@ -48,6 +48,7 @@ const PoolSchema = new mongoose.Schema({
   cycleId: { type: String, required: true },
   totalAdsWatched: { type: Number, default: 0 },
   targetAds: { type: Number, default: 15000 },
+  startDate: { type: Date, default: Date.now },
   endDate: { type: Date, required: true },
   isActive: { type: Boolean, default: true }
 });
@@ -57,8 +58,8 @@ const AdSessionSchema = new mongoose.Schema({
   txId: { type: String, required: true, unique: true },
   telegramId: { type: String, required: true },
   action: { type: String, enum: ['GET_PICKAXE', 'DOUBLE_DIAMOND'] },
-  status: { type: String, default: 'PENDING' }, // PENDING, COMPLETED, REJECTED
-  postbackReceived: { type: Boolean, default: false }, // Đã nhận tín hiệu từ Monetag chưa
+  status: { type: String, default: 'PENDING' },
+  postbackReceived: { type: Boolean, default: false },
   diamondAmount: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now, expires: 3600 }
 });
@@ -91,15 +92,19 @@ function generateLandTiles() {
 async function getActivePool() {
   let pool = await Pool.findOne({ isActive: true });
   if (!pool) {
-    const end = new Date();
-    end.setDate(end.getDate() + 3);
+    const start = new Date();
+    const end = new Date(start.getTime() + 3 * 24 * 60 * 60 * 1000);
     pool = await Pool.create({
       cycleId: 'cycle_' + Date.now(),
       totalAdsWatched: 0,
       targetAds: 15000,
+      startDate: start,
       endDate: end,
       isActive: true
     });
+  } else if (!pool.startDate) {
+    pool.startDate = new Date(pool.endDate.getTime() - 3 * 24 * 60 * 60 * 1000);
+    await pool.save();
   }
   return pool;
 }
@@ -162,7 +167,9 @@ app.post('/api/init', async (req, res) => {
       pool: {
         totalAdsWatched: pool.totalAdsWatched,
         targetAds: pool.targetAds,
-        endDate: pool.endDate
+        startDate: pool.startDate,
+        endDate: pool.endDate,
+        cycleId: pool.cycleId
       },
       leaderboard
     });
@@ -202,7 +209,7 @@ app.post('/api/dig', async (req, res) => {
 
     if (isHitBomb) {
       resultType = 'BOMB';
-      user.diamonds -= 20; // Bị nổ bom trừ 20 điểm (cho phép âm)
+      user.diamonds -= 20;
     } else if (isHitDiamond) {
       resultType = 'DIAMOND';
       diamondsGained = user.landLevel * 10;
@@ -290,7 +297,6 @@ app.get('/webhook/monetag', async (req, res) => {
       return res.status(200).send('Ignored non-valued');
     }
 
-    // Đánh dấu phiên này Monetag đã ghi nhận trả tiền
     let session = null;
     if (cleanTxId && cleanTxId.startsWith('tx_')) {
       session = await AdSession.findOne({ txId: cleanTxId });
@@ -303,7 +309,7 @@ app.get('/webhook/monetag', async (req, res) => {
     }
 
     if (session) {
-      session.postbackReceived = true; // Đã nhận tín hiệu Monetag
+      session.postbackReceived = true;
       await session.save();
       console.log(`📡 Đã nhận tín hiệu Monetag cho phiên: ${session.txId}`);
     }
@@ -314,7 +320,7 @@ app.get('/webhook/monetag', async (req, res) => {
   }
 });
 
-// ================= KIỂM TRA THỜI GIAN VÀ CỘNG THƯỞNG (CHẶT CHẼ 100%) =================
+// ================= KIỂM TRA THỜI GIAN VÀ CỘNG THƯỞNG =================
 app.get('/api/ads/check-session/:txId', async (req, res) => {
   try {
     const { txId } = req.params;
@@ -338,10 +344,8 @@ app.get('/api/ads/check-session/:txId', async (req, res) => {
       return res.json({ completed: false, rejected: true, message: 'Bạn đã tắt quảng cáo quá sớm!' });
     }
 
-    // ĐO THỜI GIAN THỰC TẾ NGƯỜI CHƠI XEM QUẢNG CÁO (TÍNH BẰNG GIÂY)
     const elapsedSeconds = (Date.now() - new Date(session.createdAt).getTime()) / 1000;
 
-    // 1. NẾU THOÁT RA QUÁ SỚM (DƯỚI 15 GIÂY) -> HỦY BỎ NGAY LẬP TỨC!
     if (elapsedSeconds < 15) {
       session.status = 'REJECTED';
       await session.save();
@@ -353,12 +357,10 @@ app.get('/api/ads/check-session/:txId', async (req, res) => {
       });
     }
 
-    // 2. BẮT BUỘC: ĐÃ ĐỦ 15 GIÂY VÀ MONETAG ĐÃ GỬI TÍN HIỆU XÁC NHẬN TRẢ TIỀN
     if (session.postbackReceived && session.status === 'PENDING') {
       session.status = 'COMPLETED';
       await session.save();
 
-      // CỘNG CUỐC HOẶC X2
       if (session.action === 'GET_PICKAXE') {
         await User.updateOne({ telegramId: session.telegramId }, { $inc: { adPickaxes: 1 } });
         console.log(`🎉 [XEM ĐỦ 15S + HỢP LỆ] ĐÃ CỘNG 1 CUỐC CHO USER: ${session.telegramId}`);
@@ -367,9 +369,7 @@ app.get('/api/ads/check-session/:txId', async (req, res) => {
         console.log(`🎉 [XEM ĐỦ 15S + HỢP LỆ] ĐÃ X2 CHO USER: ${session.telegramId}`);
       }
 
-      // CHỈ KHI XEM ĐỦ 15S HỢP LỆ MỚI TĂNG TIẾN ĐỘ QUỸ THƯỞNG 15.000 ADS
       await Pool.updateOne({ isActive: true }, { $inc: { totalAdsWatched: 1 } });
-
       return res.json({ completed: true });
     }
 
@@ -379,27 +379,39 @@ app.get('/api/ads/check-session/:txId', async (req, res) => {
   }
 });
 
-// ================= CRON JOB 3 NGÀY =================
-cron.schedule('0 0 */3 * *', async () => {
-  const pool = await getActivePool();
-  if (pool.totalAdsWatched >= 15000) {
-    pool.isActive = false;
-    await pool.save();
-    await User.updateMany({}, { $set: { diamonds: 0 } });
-    const end = new Date();
-    end.setDate(end.getDate() + 3);
-    await Pool.create({
-      cycleId: 'cycle_' + Date.now(),
-      totalAdsWatched: 0,
-      targetAds: 15000,
-      endDate: end,
-      isActive: true
-    });
-  } else {
-    const newEnd = new Date(pool.endDate);
-    newEnd.setDate(newEnd.getDate() + 3);
-    pool.endDate = newEnd;
-    await pool.save();
+// ================= CRON JOB KIỂM TRA CHU KỲ (CHẠY MỖI GIỜ) =================
+cron.schedule('0 * * * *', async () => {
+  try {
+    const pool = await getActivePool();
+    const now = new Date();
+
+    if (now >= new Date(pool.endDate)) {
+      if (pool.totalAdsWatched >= 15000) {
+        console.log('🏆 [CHỐT GIẢI THÀNH CÔNG] Đạt đủ mốc 15.000 Ads!');
+        pool.isActive = false;
+        await pool.save();
+
+        await User.updateMany({}, { $set: { diamonds: 0 } });
+
+        const start = new Date();
+        const end = new Date(start.getTime() + 3 * 24 * 60 * 60 * 1000);
+        await Pool.create({
+          cycleId: 'cycle_' + Date.now(),
+          totalAdsWatched: 0,
+          targetAds: 15000,
+          startDate: start,
+          endDate: end,
+          isActive: true
+        });
+      } else {
+        console.log(`⏳ [CHƯA ĐỦ 15.000 ADS] Hiện có: ${pool.totalAdsWatched}. Tự động gia hạn thêm 3 ngày!`);
+        const newEnd = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+        pool.endDate = newEnd;
+        await pool.save();
+      }
+    }
+  } catch (err) {
+    console.error('Lỗi cron job:', err);
   }
 });
 
