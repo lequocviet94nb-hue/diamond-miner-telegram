@@ -23,7 +23,7 @@ mongoose.connect(MONGODB_URI)
 const UserSchema = new mongoose.Schema({
   telegramId: { type: String, required: true, unique: true },
   username: { type: String, default: 'Thợ Mỏ' },
-  diamonds: { type: Number, default: 0 },
+  diamonds: { type: Number, default: 0 }, // Cho phép âm nếu trúng bom
   freePickaxes: { type: Number, default: 5 },
   lastRegen: { type: Date, default: Date.now },
   adPickaxes: { type: Number, default: 0 },
@@ -34,9 +34,13 @@ const User = mongoose.model('User', UserSchema);
 const LandSchema = new mongoose.Schema({
   telegramId: { type: String, required: true },
   landLevel: { type: Number, default: 1 },
-  diamondTiles: [Number],
-  dugTiles: [{ tileIndex: Number, hasDiamond: Boolean }],
-  diamondsFound: { type: Number, default: 0 }
+  diamondTiles: [Number], // 30 vị trí kim cương
+  bombTiles: [Number],    // 10 vị trí bom
+  dugTiles: [{ 
+    tileIndex: Number, 
+    type: { type: String, enum: ['EMPTY', 'DIAMOND', 'BOMB'] } 
+  }],
+  diamondsFound: { type: Number, default: 0 } // Bắt buộc đạt 30 mới qua mảnh đất mới
 });
 const Land = mongoose.model('Land', LandSchema);
 
@@ -59,12 +63,31 @@ const AdSessionSchema = new mongoose.Schema({
 });
 const AdSession = mongoose.model('AdSession', AdSessionSchema);
 
-function generateDiamondTiles() {
-  const set = new Set();
-  while (set.size < 30) {
-    set.add(Math.floor(Math.random() * 200));
+// Tạo 30 ô Kim Cương và 10 ô Bom ngẫu nhiên (hoàn toàn không trùng nhau)
+function generateLandTiles() {
+  const allUsed = new Set();
+  const diamondTiles = [];
+  const bombTiles = [];
+
+  // Tạo 30 ô Kim Cương
+  while (diamondTiles.length < 30) {
+    const r = Math.floor(Math.random() * 200);
+    if (!allUsed.has(r)) {
+      allUsed.add(r);
+      diamondTiles.push(r);
+    }
   }
-  return Array.from(set);
+
+  // Tạo 10 ô Bom
+  while (bombTiles.length < 10) {
+    const r = Math.floor(Math.random() * 200);
+    if (!allUsed.has(r)) {
+      allUsed.add(r);
+      bombTiles.push(r);
+    }
+  }
+
+  return { diamondTiles, bombTiles };
 }
 
 async function getActivePool() {
@@ -99,6 +122,7 @@ app.post('/api/init', async (req, res) => {
       await user.save();
     }
 
+    // Hồi cuốc tự động (1 cuốc / 30 phút, tối đa 5)
     const now = new Date();
     const elapsedMinutes = (now - new Date(user.lastRegen)) / (1000 * 60);
     const regenCount = Math.floor(elapsedMinutes / 30);
@@ -108,15 +132,31 @@ app.post('/api/init', async (req, res) => {
       await user.save();
     }
 
+    // Lấy hoặc tạo mảnh đất
     let land = await Land.findOne({ telegramId, landLevel: user.landLevel });
     if (!land) {
+      const { diamondTiles, bombTiles } = generateLandTiles();
       land = await Land.create({
         telegramId,
         landLevel: user.landLevel,
-        diamondTiles: generateDiamondTiles(),
+        diamondTiles,
+        bombTiles,
         dugTiles: [],
         diamondsFound: 0
       });
+    } else if (!land.bombTiles || land.bombTiles.length === 0) {
+      // Tự động bổ sung 10 ô bom cho các mảnh đất đã tạo trước đó
+      const used = new Set(land.diamondTiles);
+      const bombs = [];
+      while (bombs.length < 10) {
+        const r = Math.floor(Math.random() * 200);
+        if (!used.has(r)) {
+          used.add(r);
+          bombs.push(r);
+        }
+      }
+      land.bombTiles = bombs;
+      await land.save();
     }
 
     const pool = await getActivePool();
@@ -149,7 +189,7 @@ app.post('/api/init', async (req, res) => {
   }
 });
 
-// 2. Đào đất
+// 2. Đào đất (Xử lý Kim Cương & Bom)
 app.post('/api/dig', async (req, res) => {
   try {
     const { telegramId, tileIndex } = req.body;
@@ -165,44 +205,61 @@ app.post('/api/dig', async (req, res) => {
       return res.status(400).json({ error: 'Ô này đã đào rồi' });
     }
 
+    // Trừ 1 cuốc
     if (user.freePickaxes > 0) {
       user.freePickaxes -= 1;
     } else {
       user.adPickaxes -= 1;
     }
 
-    const isHit = land.diamondTiles.includes(tileIndex);
-    land.dugTiles.push({ tileIndex, hasDiamond: isHit });
+    const isHitDiamond = land.diamondTiles.includes(tileIndex);
+    const isHitBomb = land.bombTiles && land.bombTiles.includes(tileIndex);
 
+    let resultType = 'EMPTY';
     let diamondsGained = 0;
     let leveledUp = false;
     let newLevel = user.landLevel;
 
-    if (isHit) {
+    if (isHitBomb) {
+      // 💣 ĐÀO TRÚNG BOM: Nổ và trừ 20 kim cương (cho phép âm)
+      resultType = 'BOMB';
+      user.diamonds -= 20;
+    } else if (isHitDiamond) {
+      // 💎 ĐÀO TRÚNG KIM CƯƠNG
+      resultType = 'DIAMOND';
       diamondsGained = user.landLevel * 10;
       user.diamonds += diamondsGained;
       land.diamondsFound += 1;
 
+      // ĐIỀU KIỆN LÊN CẤP ĐẤT MỚI: BẮT BUỘC KHAI THÁC HẾT 30 KIM CƯƠNG
       if (land.diamondsFound >= 30 && user.landLevel < 10) {
         user.landLevel += 1;
         newLevel = user.landLevel;
         leveledUp = true;
+
+        // Tạo mảnh đất mới với 30 Kim Cương và 10 Bom mới
+        const nextTiles = generateLandTiles();
         await Land.create({
           telegramId,
           landLevel: newLevel,
-          diamondTiles: generateDiamondTiles(),
+          diamondTiles: nextTiles.diamondTiles,
+          bombTiles: nextTiles.bombTiles,
           dugTiles: [],
           diamondsFound: 0
         });
       }
     }
 
+    land.dugTiles.push({ tileIndex, type: resultType });
+
     await user.save();
     await land.save();
 
     res.json({
       success: true,
-      hit: isHit,
+      type: resultType,
+      hitDiamond: isHitDiamond,
+      hitBomb: isHitBomb,
       diamondsGained,
       user: {
         diamonds: user.diamonds,
@@ -239,7 +296,7 @@ app.post('/api/ads/create-session', async (req, res) => {
   }
 });
 
-// 4. WEBHOOK S2S DUY NHẤT ĐƯỢC PHÉP CỘNG THƯỞNG (CHỐNG GIAN LẬN 100%)
+// 4. Webhook S2S Monetag (Chống gian lận 100%)
 app.get('/webhook/monetag', async (req, res) => {
   try {
     const { secret, user_id, tx_id, action } = req.query;
@@ -268,10 +325,10 @@ app.get('/webhook/monetag', async (req, res) => {
 
     if (targetAction === 'GET_PICKAXE') {
       await User.updateOne({ telegramId: String(targetUserId) }, { $inc: { adPickaxes: 1 } });
-      console.log(`✅ [S2S POSTBACK THẬT] Monetag xác nhận cộng 1 cuốc cho: ${targetUserId}`);
+      console.log(`✅ [S2S POSTBACK THẬT] Cộng 1 cuốc cho: ${targetUserId}`);
     } else if (targetAction === 'DOUBLE_DIAMOND' && session && session.diamondAmount > 0) {
       await User.updateOne({ telegramId: String(targetUserId) }, { $inc: { diamonds: session.diamondAmount } });
-      console.log(`✅ [S2S POSTBACK THẬT] Monetag xác nhận X2 cho: ${targetUserId}`);
+      console.log(`✅ [S2S POSTBACK THẬT] X2 kim cương cho: ${targetUserId}`);
     }
 
     await Pool.updateOne({ isActive: true }, { $inc: { totalAdsWatched: 1 } });
@@ -281,7 +338,7 @@ app.get('/webhook/monetag', async (req, res) => {
   }
 });
 
-// 5. Kiểm tra trạng thái phiên xem (game polling hỏi server)
+// 5. Kiểm tra phiên xem Ads
 app.get('/api/ads/check-session/:txId', async (req, res) => {
   const session = await AdSession.findOne({ txId: req.params.txId });
   if (session && session.status === 'COMPLETED') {
@@ -290,7 +347,7 @@ app.get('/api/ads/check-session/:txId', async (req, res) => {
   return res.json({ completed: false });
 });
 
-// ================= CRON JOB 3 NGÀY QUẢN LÝ POOL =================
+// ================= CRON JOB 3 NGÀY =================
 cron.schedule('0 0 */3 * *', async () => {
   const pool = await getActivePool();
   if (pool.totalAdsWatched >= 15000) {
