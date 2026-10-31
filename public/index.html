@@ -394,7 +394,7 @@
       }
     }
 
-    // 4. KÍCH HOẠT QUẢNG CÁO MONETAG THẬT
+    // 4. KÍCH HOẠT QUẢNG CÁO MONETAG VÀ KIỂM TRA S2S POSTBACK THẬT
     async function watchAdForPickaxe() {
       closeModal('modal-no-pickaxe');
       await runMonetagAd('GET_PICKAXE', 0);
@@ -406,31 +406,58 @@
     }
 
     async function runMonetagAd(action, amount) {
-      // 1. Báo server tạo phiên
-      const res = await fetch('/api/ads/create-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ telegramId: String(userData.id), action, diamondAmount: amount })
-      });
-      const { txId } = await res.json();
-
-      // 2. Gọi hàm hiển thị quảng cáo thật của Monetag
-      if (typeof window.show_12154176 === 'function') {
-        window.show_12154176().then(async () => {
-          // Người chơi xem xong video -> Báo server cộng thưởng ngay lập tức
-          await fetch('/api/ads/claim-reward', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ telegramId: String(userData.id), txId, action, diamondAmount: amount })
-          });
-          // Cập nhật lại giao diện game
-          setTimeout(loadGame, 800);
-        }).catch(err => {
-          console.warn("Người dùng đóng quảng cáo hoặc chưa sẵn sàng:", err);
+      try {
+        // 1. Tạo phiên xem ads trên Server
+        const res = await fetch('/api/ads/create-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ telegramId: String(userData.id), action, diamondAmount: amount })
         });
-      } else {
-        alert("Quảng cáo đang tải, bạn vui lòng bấm lại sau 3 giây nhé!");
+        const { txId } = await res.json();
+
+        // 2. Mở quảng cáo Monetag
+        if (typeof window.show_12154176 === 'function') {
+          window.show_12154176({ ymid: txId, request_var: action }).then(() => {
+            // Sau khi tắt quảng cáo, kiểm tra xem máy chủ Monetag đã gửi Postback chưa
+            verifyRewardWithServer(txId);
+          }).catch((err) => {
+            console.warn("Lỗi hoặc tắt ngang:", err);
+            verifyRewardWithServer(txId);
+          });
+        } else {
+          alert("Quảng cáo đang tải, vui lòng thử lại sau 3 giây!");
+        }
+      } catch (err) {
+        console.error("Lỗi xem ad:", err);
       }
+    }
+
+    // Kiểm tra trực tiếp với Server xem Monetag đã xác nhận chưa (Chống gian lận)
+    function verifyRewardWithServer(txId) {
+      let attempts = 0;
+      const maxAttempts = 6; // Kiểm tra trong vòng 12 giây
+      
+      const checkTimer = setInterval(async () => {
+        attempts++;
+        try {
+          const res = await fetch('/api/ads/check-session/' + txId);
+          const data = await res.json();
+
+          if (data.completed) {
+            // ĐÃ XÁC NHẬN TỪ MONETAG
+            clearInterval(checkTimer);
+            alert("🎉 Chúc mừng! Monetag đã xác nhận bạn xem đủ video và cộng thưởng thành công!");
+            loadGame();
+          } else if (attempts >= maxAttempts) {
+            // QUÁ THỜI GIAN MÀ CHƯA CÓ POSTBACK (DO TẮT SỚM HOẶC GIAN LẬN)
+            clearInterval(checkTimer);
+            alert("⚠️ Bạn chưa xem hết video hoặc đã tắt sớm nên không nhận được cuốc!");
+            loadGame();
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }, 2000);
     }
 
     function closeModal(id) {
