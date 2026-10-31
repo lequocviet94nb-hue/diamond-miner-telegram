@@ -8,7 +8,7 @@
   <!-- Telegram WebApp SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
-  <!-- Monetag SDK Thật của bạn -->
+  <!-- Monetag SDK Thật -->
   <script src="//libtl.com/sdk.js" data-zone="12154176" data-sdk="show_12154176"></script>
 
   <style>
@@ -20,7 +20,6 @@
       padding-bottom: 30px;
     }
     
-    /* Header Thông tin */
     .header {
       background: #252836;
       padding: 12px 16px;
@@ -61,7 +60,6 @@
     .stat-title { font-size: 11px; color: #94a3b8; }
     .stat-val { font-size: 16px; font-weight: bold; margin-top: 2px; }
 
-    /* Nút xem Ads */
     .btn-ad-pickaxe {
       width: 100%;
       background: linear-gradient(135deg, #3b82f6, #1d4ed8);
@@ -80,7 +78,6 @@
     }
     .btn-ad-pickaxe:active { transform: scale(0.98); }
 
-    /* Thanh tiến độ Pool 15.000 Ads */
     .pool-box {
       margin: 12px 16px;
       background: #252836;
@@ -109,7 +106,6 @@
       transition: width 0.3s;
     }
 
-    /* Bàn cờ 200 ô */
     .grid-container {
       margin: 0 16px;
       display: grid;
@@ -144,13 +140,26 @@
       animation: pop 0.3s ease;
       cursor: default;
     }
+    .tile.dug-bomb {
+      background: radial-gradient(circle, #ef4444 0%, #7f1d1d 100%);
+      box-shadow: 0 0 10px #ef4444;
+      animation: shake 0.4s ease;
+      cursor: default;
+    }
+
     @keyframes pop {
       0% { transform: scale(0.6); }
       70% { transform: scale(1.15); }
       100% { transform: scale(1); }
     }
+    @keyframes shake {
+      0%, 100% { transform: translate(0, 0); }
+      20% { transform: translate(-3px, 2px); }
+      40% { transform: translate(3px, -2px); }
+      60% { transform: translate(-2px, 3px); }
+      80% { transform: translate(2px, -3px); }
+    }
 
-    /* Modal Pop-up */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -170,6 +179,9 @@
       width: 100%;
       border: 2px solid #3b82f6;
     }
+    .modal-card.bomb-card {
+      border: 2px solid #ef4444;
+    }
     .modal-title { font-size: 20px; font-weight: bold; margin-bottom: 8px; }
     .modal-desc { font-size: 14px; color: #cbd5e1; margin-bottom: 20px; }
     .modal-btn {
@@ -183,9 +195,9 @@
       font-size: 15px;
     }
     .btn-primary { background: #22c55e; color: #fff; }
+    .btn-danger { background: #ef4444; color: #fff; }
     .btn-secondary { background: #475569; color: #fff; }
 
-    /* Leaderboard */
     .leaderboard-box {
       margin: 16px;
       background: #252836;
@@ -213,7 +225,7 @@
     <div class="stats-row">
       <div class="stat-card">
         <div class="stat-title">Kim Cương</div>
-        <div class="stat-val" style="color: #38bdf8;">💎 <span id="u-diamonds">0</span></div>
+        <div class="stat-val" id="diamond-box" style="color: #38bdf8;">💎 <span id="u-diamonds">0</span></div>
       </div>
       <div class="stat-card">
         <div class="stat-title">Cuốc Hiện Có</div>
@@ -238,9 +250,6 @@
     <div class="progress-bar-bg">
       <div class="progress-bar-fill" id="pool-fill"></div>
     </div>
-    <div style="font-size: 11px; color: #94a3b8; margin-top: 6px; text-align: right;" id="pool-timer">
-      Đang đếm thời gian...
-    </div>
   </div>
 
   <!-- BÀN CỜ 200 Ô -->
@@ -254,7 +263,7 @@
     <div id="lb-list">Đang tải xếp hạng...</div>
   </div>
 
-  <!-- MODAL POPUP X2 KIM CƯƠNG -->
+  <!-- MODAL TRÚNG KIM CƯƠNG -->
   <div class="modal-overlay" id="modal-double">
     <div class="modal-card">
       <div class="modal-title">💎 TRÚNG KIM CƯƠNG!</div>
@@ -264,11 +273,20 @@
     </div>
   </div>
 
-  <!-- MODAL POPUP HẾT CUỐC -->
+  <!-- MODAL ĐÀO TRÚNG BOM -->
+  <div class="modal-overlay" id="modal-bomb">
+    <div class="modal-card bomb-card">
+      <div class="modal-title" style="color: #ef4444;">💥 BÙM! DẪM PHẢI BOM!</div>
+      <div class="modal-desc">Bạn vừa đào trúng Bom nổ!<br><b style="color: #ef4444; font-size: 16px;">Bị trừ 20 Kim Cương!</b></div>
+      <button class="modal-btn btn-danger" onclick="closeModal('modal-bomb')">Đã Hiểu</button>
+    </div>
+  </div>
+
+  <!-- MODAL HẾT CUỐC -->
   <div class="modal-overlay" id="modal-no-pickaxe">
     <div class="modal-card">
       <div class="modal-title">⚠️ BẠN ĐÃ HẾT CUỐC!</div>
-      <div class="modal-desc">Cuốc miễn phí hồi 1 cái mỗi 30 phút. Hoặc bạn có thể xem 1 video ngắn để nhận ngay 1 cuốc!</div>
+      <div class="modal-desc">Cuốc miễn phí hồi 1 cái mỗi 30 phút. Hoặc xem 1 video để nhận ngay 1 cuốc đào!</div>
       <button class="modal-btn btn-primary" onclick="watchAdForPickaxe()">📺 Xem Video Nhận 1 Cuốc Ngay</button>
       <button class="modal-btn btn-secondary" onclick="closeModal('modal-no-pickaxe')">Đợi Hồi Tự Nhiên</button>
     </div>
@@ -286,9 +304,8 @@
       : { id: "test_user_123", first_name: "Thợ Mỏ" };
 
     let currentDiamondsGained = 0;
-    let dugMap = new Map();
+    let dugMap = new Map(); // Lưu tileIndex -> 'EMPTY' | 'DIAMOND' | 'BOMB'
 
-    // 1. TẢI DỮ LIỆU BAN ĐẦU
     async function loadGame() {
       try {
         const res = await fetch('/api/init', {
@@ -308,21 +325,27 @@
     function updateUI(user, land, pool, lb) {
       document.getElementById('u-name').innerText = '⛏ ' + user.username;
       document.getElementById('u-land').innerText = `CẤP ${user.landLevel} (${user.landLevel * 10} 💎/ô)`;
-      document.getElementById('u-diamonds').innerText = user.diamonds.toLocaleString();
+      
+      const diamondEl = document.getElementById('u-diamonds');
+      diamondEl.innerText = user.diamonds.toLocaleString();
+      // Đổi màu đỏ nếu kim cương bị âm
+      if (user.diamonds < 0) {
+        document.getElementById('diamond-box').style.color = '#ef4444';
+      } else {
+        document.getElementById('diamond-box').style.color = '#38bdf8';
+      }
+
       document.getElementById('u-pickaxes').innerText = user.freePickaxes + user.adPickaxes;
       document.getElementById('u-found').innerText = land.diamondsFound;
 
-      // Pool progress
       const pct = Math.min(100, (pool.totalAdsWatched / pool.targetAds) * 100);
       document.getElementById('pool-count').innerText = `${pool.totalAdsWatched} / ${pool.targetAds.toLocaleString()} Ads`;
       document.getElementById('pool-fill').style.width = pct + '%';
 
-      // Vẽ 200 ô
       dugMap.clear();
-      land.dugTiles.forEach(t => dugMap.set(t.tileIndex, t.hasDiamond));
+      land.dugTiles.forEach(t => dugMap.set(t.tileIndex, t.type || (t.hasDiamond ? 'DIAMOND' : 'EMPTY')));
       renderGrid();
 
-      // Vẽ Bảng xếp hạng
       let lbHtml = '';
       lb.forEach((u, idx) => {
         const medal = idx === 0 ? '🥇' : (idx === 1 ? '🥈' : '🥉');
@@ -331,7 +354,6 @@
       document.getElementById('lb-list').innerHTML = lbHtml || 'Chưa có dữ liệu';
     }
 
-    // 2. VẼ BÀN CỜ 200 Ô
     function renderGrid() {
       const container = document.getElementById('grid');
       container.innerHTML = '';
@@ -339,9 +361,13 @@
         const div = document.createElement('div');
         div.className = 'tile';
         if (dugMap.has(i)) {
-          if (dugMap.get(i)) {
+          const type = dugMap.get(i);
+          if (type === 'DIAMOND') {
             div.classList.add('dug-diamond');
             div.innerText = '💎';
+          } else if (type === 'BOMB') {
+            div.classList.add('dug-bomb');
+            div.innerText = '💣';
           } else {
             div.classList.add('dug-empty');
             div.innerText = '•';
@@ -353,7 +379,6 @@
       }
     }
 
-    // 3. ĐÀO Ô
     async function digTile(tileIndex) {
       if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
 
@@ -371,21 +396,37 @@
         }
 
         if (data.success) {
-          dugMap.set(tileIndex, data.hit);
-          document.getElementById('u-diamonds').innerText = data.user.diamonds.toLocaleString();
+          dugMap.set(tileIndex, data.type);
+          
+          const diamondEl = document.getElementById('u-diamonds');
+          diamondEl.innerText = data.user.diamonds.toLocaleString();
+          if (data.user.diamonds < 0) {
+            document.getElementById('diamond-box').style.color = '#ef4444';
+          } else {
+            document.getElementById('diamond-box').style.color = '#38bdf8';
+          }
+
           document.getElementById('u-pickaxes').innerText = data.user.freePickaxes + data.user.adPickaxes;
           document.getElementById('u-found').innerText = data.diamondsFound;
           renderGrid();
 
-          if (data.hit) {
+          // 💣 TRÚNG BOM
+          if (data.hitBomb) {
+            if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
+            document.getElementById('modal-bomb').style.display = 'flex';
+          }
+
+          // 💎 TRÚNG KIM CƯƠNG
+          if (data.hitDiamond) {
             if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
             currentDiamondsGained = data.diamondsGained;
             document.getElementById('double-desc').innerText = `Bạn vừa nhận được +${data.diamondsGained} Kim Cương! Xem video để nhận thêm +${data.diamondsGained} nữa?`;
             document.getElementById('modal-double').style.display = 'flex';
           }
 
+          // 🎉 ĐÀO ĐỦ 30 KIM CƯƠNG -> LÊN CẤP ĐẤT MỚI
           if (data.leveledUp) {
-            alert(`🎉 CHÚC MỪNG! Bạn đã đào hết 30 viên kim cương và mở khóa MẢNH ĐẤT CẤP ${data.newLevel}!`);
+            alert(`🎉 TUYỆT ĐỈNH! Bạn đã khai thác đủ 30 Kim Cương và mở khóa MẢNH ĐẤT CẤP ${data.newLevel}!`);
             loadGame();
           }
         }
@@ -394,7 +435,6 @@
       }
     }
 
-    // 4. KÍCH HOẠT QUẢNG CÁO MONETAG VÀ KIỂM TRA S2S POSTBACK THẬT
     async function watchAdForPickaxe() {
       closeModal('modal-no-pickaxe');
       await runMonetagAd('GET_PICKAXE', 0);
@@ -407,7 +447,6 @@
 
     async function runMonetagAd(action, amount) {
       try {
-        // 1. Tạo phiên xem ads trên Server
         const res = await fetch('/api/ads/create-session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -415,13 +454,10 @@
         });
         const { txId } = await res.json();
 
-        // 2. Mở quảng cáo Monetag
         if (typeof window.show_12154176 === 'function') {
           window.show_12154176({ ymid: txId, request_var: action }).then(() => {
-            // Sau khi tắt quảng cáo, kiểm tra xem máy chủ Monetag đã gửi Postback chưa
             verifyRewardWithServer(txId);
           }).catch((err) => {
-            console.warn("Lỗi hoặc tắt ngang:", err);
             verifyRewardWithServer(txId);
           });
         } else {
@@ -432,24 +468,19 @@
       }
     }
 
-    // Kiểm tra trực tiếp với Server xem Monetag đã xác nhận chưa (Chống gian lận)
     function verifyRewardWithServer(txId) {
       let attempts = 0;
-      const maxAttempts = 6; // Kiểm tra trong vòng 12 giây
-      
+      const maxAttempts = 6;
       const checkTimer = setInterval(async () => {
         attempts++;
         try {
           const res = await fetch('/api/ads/check-session/' + txId);
           const data = await res.json();
-
           if (data.completed) {
-            // ĐÃ XÁC NHẬN TỪ MONETAG
             clearInterval(checkTimer);
             alert("🎉 Chúc mừng! Monetag đã xác nhận bạn xem đủ video và cộng thưởng thành công!");
             loadGame();
           } else if (attempts >= maxAttempts) {
-            // QUÁ THỜI GIAN MÀ CHƯA CÓ POSTBACK (DO TẮT SỚM HOẶC GIAN LẬN)
             clearInterval(checkTimer);
             alert("⚠️ Bạn chưa xem hết video hoặc đã tắt sớm nên không nhận được cuốc!");
             loadGame();
@@ -464,7 +495,6 @@
       document.getElementById(id).style.display = 'none';
     }
 
-    // Bắt đầu game
     loadGame();
   </script>
 </body>
